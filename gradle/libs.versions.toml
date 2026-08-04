@@ -1,0 +1,40 @@
+[versions]
+agp = "8.5.2"
+kotlin = "2.0.20"
+coroutines = "1.8.1"
+coreKtx = "1.13.1"
+activityCompose = "1.9.2"
+lifecycle = "2.8.6"
+composeBom = "2024.09.02"
+junit = "4.13.2"
+stario10 = "1.12.0"
+dantsu = "3.3.0"
+sunmiPrinter = "1.0.19"
+imin = "V2.0.0.18"
+zxing = "3.5.3"
+glide = "4.16.0"
+
+[libraries]
+androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
+kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutines" }
+kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "coroutines" }
+androidx-activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "activityCompose" }
+androidx-lifecycle-runtime-ktx = { group = "androidx.lifecycle", name = "lifecycle-runtime-ktx", version.ref = "lifecycle" }
+androidx-compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "composeBom" }
+androidx-compose-ui = { group = "androidx.compose.ui", name = "ui" }
+androidx-compose-ui-graphics = { group = "androidx.compose.ui", name = "ui-graphics" }
+androidx-compose-ui-tooling-preview = { group = "androidx.compose.ui", name = "ui-tooling-preview" }
+androidx-compose-material3 = { group = "androidx.compose.material3", name = "material3" }
+junit = { group = "junit", name = "junit", version.ref = "junit" }
+stario10 = { group = "com.starmicronics", name = "stario10", version.ref = "stario10" }
+dantsu-escpos = { group = "com.github.DantSu", name = "ESCPOS-ThermalPrinter-Android", version.ref = "dantsu" }
+sunmi-printer = { group = "com.sunmi", name = "printerlibrary", version.ref = "sunmiPrinter" }
+imin-printer = { group = "com.github.iminsoftware", name = "IminPrinterLibrary", version.ref = "imin" }
+zxing-core = { group = "com.google.zxing", name = "core", version.ref = "zxing" }
+glide = { group = "com.github.bumptech.glide", name = "glide", version.ref = "glide" }
+
+[plugins]
+android-library = { id = "com.android.library", version.ref = "agp" }
+android-application = { id = "com.android.application", version.ref = "agp" }
+kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }

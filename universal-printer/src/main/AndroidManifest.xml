@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Network (TCP/9100) printing -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- USB printing via UsbManager (host mode) -->
+    <uses-feature
+        android:name="android.hardware.usb.host"
+        android:required="false" />
+
+    <!--
+      Android 11+ (API 30) package visibility. The built-in-printer backends bindService() to a
+      vendor AIDL service in another package; without declaring it here bindService returns false on
+      API 30+. Package/action verified from the vendor AAR bytecode:
+        · Sunmi: Intent.setPackage("woyou.aidlservice.jiuiv5")
+                 .setAction("woyou.aidlservice.jiuiv5.IWoyouService")
+        · iMin : Intent.setAction("com.imin.printerservice.NeoPrinterService")
+                 .setComponent(ComponentName("com.imin.printerservice", "...NeoPrinterService"))
+    -->
+    <queries>
+        <package android:name="woyou.aidlservice.jiuiv5" />
+        <package android:name="com.imin.printerservice" />
+    </queries>
+
+</manifest>

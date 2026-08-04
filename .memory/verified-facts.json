@@ -1,0 +1,98 @@
+{
+  "_purpose": "Anti-hallucination anchor. ONLY verified facts (confirmed by reading source in this repo, running a command, or a web search with citation). Never add an unverified claim. Assumptions do NOT belong here.",
+  "_lastVerified": "2026-07-15",
+  "project": {
+    "sdkName": "Universal Printer Search",
+    "rootProjectName": "universal-printer-search",
+    "libraryModule": ":universal-printer-search",
+    "namespace": "com.universalprintersearch",
+    "exampleModule": ":example",
+    "exampleApplicationId": "com.universalprintersearch.example",
+    "publicApiClass": "UniversalPrinterSearch (universal-printer-search/src/main/java/com/universalprintersearch/UniversalPrinterSearch.kt)",
+    "scope": "SDK-FREE discovery only: Epson (ENPC/UDP + GS I), Sunmi (NsdManager/mDNS), Zebra (UDP-4201), SNMP brands = Star/Bixolon/Citizen/Brother/Seiko-RP (TCP-9100 sweep + SNMP identity), generic IP (TCP-9100 sweep, SNMP-enriched), USB (UsbManager). PRINTING for any brand + Seiko SLP720/721RT label printers still EXCLUDED (need proprietary jars). See decisions D1 + D5 + D7 + D8.",
+    "provenance": "Clean-room port of the native search code in foodhub-printer-package (IPScanner.kt, EpsonUdpDiscovery.kt, EpsonPrinterHelper.kt, UsbUniversalSearch.kt, PrintUtils.kt, PermissionUtils.kt)."
+  },
+  "build": {
+    "status_VERIFIED": "BUILD SUCCESSFUL — `./gradlew :universal-printer-search:assembleDebug :example:assembleDebug` exit 0 (2026-07-15, after rename). Artifacts: universal-printer-search/build/outputs/aar/universal-printer-search-debug.aar + example/build/outputs/apk/debug/example-debug.apk.",
+    "toolchain_VERIFIED": {
+      "agp": "8.5.2",
+      "kotlin": "2.0.20",
+      "gradle": "8.13 (wrapper reused from foodhub-printer-package example)",
+      "jdk": "17 (Corretto 17.0.18)",
+      "compileSdk": 34,
+      "minSdk": 21,
+      "coroutines": "1.8.1"
+    },
+    "notVerified": "On-device / on-hardware discovery of a real Epson/USB/network printer. ASSUMED correct because ported faithfully; NOT run against hardware."
+  },
+  "protocols_ported": {
+    "enpc_VERIFIED_in_source_repo": {
+      "note": "Verified on real TM-m30III hardware in the SOURCE repo (docs/EPSON_PRINTER_CHANGES.md comments, dated 2026-07-02). NOT re-verified on hardware in THIS repo.",
+      "port_udp": 3289,
+      "query_fn0": "ASCII 'EPSONQ' + fn(0x00) LE + 0x10 00 00 00 00 00 -> reply carries MAC at byte offset 54 (6 bytes)",
+      "query_fn2": "fn(0x02) -> IEEE-1284 ID string (MFG/CMD/MDL...) -> model from MDL: token",
+      "header": "replies start with ASCII 'EPSON'",
+      "macOffset": 54,
+      "caveat": "MAC offset 54 verified for TM-m30III only; other TM models guarded (invalid MAC -> empty, IP still returned)."
+    },
+    "escpos_gs_i_VERIFIED_in_source_repo": {
+      "GS_I_maker_66": "bytes 1D 49 42 -> printable reply contains 'EPSON' => brand match",
+      "GS_I_serial_68": "bytes 1D 49 44 -> reply '_<serial>\\0'; strip non-printable + leading underscore; unique id on Android 11+",
+      "port": 9100,
+      "caveat": "Epson accepts ~one concurrent TCP-9100 connection, so the serial probe often fails during search; the ENPC UDP MAC is the PRIMARY identifier, serial is BACKUP."
+    },
+    "usb_VERIFIED": {
+      "printerClass": "android.hardware.usb.UsbConstants.USB_CLASS_PRINTER (0x07) on any interface => treat as printer",
+      "runtime_permission": "NOT needed to LIST/search USB printers (UsbPrinterScanner.listConnectedPrinters works permission-free). Runtime permission is only needed to OPEN/print to a device (UsbPermissionHelper.ensurePermission).",
+      "permission_flags_CORRECT_for_android14": "Researched (ESCPOS-ThermalPrinter #530, the real Android-14 case): Android 14 (U, API 34) FORBIDS PendingIntent.FLAG_MUTABLE with an IMPLICIT intent (crashes). Correct pattern = EXPLICIT intent via setPackage + FLAG_IMMUTABLE (+ FLAG_UPDATE_CURRENT) on API 31+, and RECEIVER_NOT_EXPORTED on API 33+. UsbPermissionHelper already did explicit-intent + IMMUTABLE + RECEIVER_NOT_EXPORTED; added FLAG_UPDATE_CURRENT. (Earlier belief that USB needs FLAG_MUTABLE was WRONG — corrected by research; MUTABLE+implicit is exactly what breaks on 14.) No Android 15/API 35 USB-permission change found.",
+      "manifest": "Library manifest declares INTERNET, ACCESS_WIFI_STATE, ACCESS_NETWORK_STATE, CHANGE_WIFI_MULTICAST_STATE + uses-feature android.hardware.usb.host(required=false); all merge into consumer apps (VERIFIED in merged example manifest)."
+    },
+    "sunmi_VERIFIED_by_decompiling_sdk": {
+      "note": "Verified by decompiling com.sunmi:external-printerlibrary2:1.0.13 (Maven Central; unzip AAR -> classes.jar -> javap). LanHelper + CloudPrinterBuilder. NOT re-verified against a real Sunmi cloud printer on hardware.",
+      "mechanism": "Android NsdManager (DNS-SD / mDNS) — platform API, no Sunmi jar.",
+      "serviceType": "_afpovertcp._tcp.",
+      "discover": "NsdManager.discoverServices(serviceType, NsdManager.PROTOCOL_DNS_SD, listener)",
+      "resolve": "NsdManager.resolveService(info, resolveListener) -> host + port",
+      "nameFilter": "keep only resolved serviceName starting with 'CloudPrint_' (distinguishes a Sunmi cloud printer from any other _afpovertcp._tcp responder e.g. a Mac)",
+      "printerFields": "name = serviceName; ipAddress = resolved host.hostAddress; port = resolved port (else 9100); brand = SUNMI",
+      "no_udp_17899_in_1_0_13": "grepped the jar for 17899/MulticastSocket/224.0.0.1 -> none. The UDP-17899 multicast in some Sunmi docs is a different/newer mechanism, NOT what 1.0.13 ships.",
+      "identity": "serial via GS I 68 (1D 49 44) over TCP-9100 — VERIFIED from foodhub EscPosPrinterCommands.java:832 (customQuerySn == GS_I_SERIAL); implemented via EscPosSerialProbe wired into SunmiDiscovery.enrichIdentity. MAC = best-effort ARP (<=Android9 only). mDNS itself does not expose MAC/serial.",
+      "caveat": "resolveService deprecated in API 34 (registerServiceInfoCallback on 34+ is the follow-up); resolves must be serialized (FAILURE_ALREADY_ACTIVE on <API31)."
+    },
+    "rongta_PARTIAL": {
+      "discovery": "generic TCP-9100 subnet scan (default IP 192.168.1.87, port 9100). A Rongta UDP setup tool exists but its broadcast port/packet is in an un-extractable Chinese/binary PDF.",
+      "serial": "Rongta does NOT support GS I (verified: ManualsLib RP325/326/327/328 command set). Serial/firmware/manufacturer/name come via GS ( H (1D 28 48 ...) per that manual p37 — EXACT request params + response layout UNVERIFIED (could not extract). Do NOT hardcode guessed bytes; needs a real-device capture or the p37 spec.",
+      "mac": "ARP only (<=Android9), unless the UDP discovery packet is obtained."
+    },
+    "multibrand_snmp_and_zebra": {
+      "note": "Star/Bixolon/Citizen/Brother/Seiko discovery generalized onto ONE brand-agnostic SNMP flow (network/snmp/), + Zebra via UDP-4201 (network/zebra/). Decision D8, 2026-07-16.",
+      "snmp_flow": "TCP-9100 /24 sweep (NetworkScanner) -> per-host SnmpIdentityProbe. Brand from sysDescr/hrDeviceDescr token map (SnmpIdentityProbe.BRAND_TOKENS). Fields from standard OIDs: sysDescr 1.3.6.1.2.1.1.1.0, hrDeviceDescr 1.3.6.1.2.1.25.3.2.1.3.1, prtGeneralSerialNumber 1.3.6.1.2.1.43.5.1.1.17.1, ifPhysAddress 1.3.6.1.2.1.2.2.1.6.1 (MAC). snmpOnly flag: true=only SNMP responders (discoverSnmpPrinters), false=all reachable incl GENERIC IP-only (discoverNetworkPrinters).",
+      "escpos_serial_fallback_ONDEVICE": "ON-DEVICE finding (V3_MIX POS terminal, 2026-07-17): MAC is NOT obtained for Star or Sunmi (ARP blocked on Android 11+; SNMP ifPhysAddress not answered). Serial via ESC/POS GS I 68 (1D 49 44) DOES work (confirmed for Sunmi + Epson). FIX: SnmpDiscovery now falls back to EscPosSerialProbe.querySerial over TCP-9100 when the SNMP serial OID is empty (covers Star + generic). Sunmi flow already used it; Epson uses EpsonTcpProbe GS I. So serial is the unique identifier for MAC-less printers. VERIFIED build+tests (16, 0 fail); on-device serial values NOT yet re-captured after this fix.",
+      "zebra_flow": "UDP-4201 broadcast. Request 2E 2C 3A 01 00 00. Reply header 3A 2C 2E + 0x03; fields NUL-terminated ASCII at model@0x0C, serial@0x38, hostname@0x54; IP from packet source; NO MAC in packet (MAC via SNMP enrichment). Mirrors EpsonUdpDiscovery (MulticastLock, bcast+subnet-bcast, 1s resend).",
+      "pen_matching_PRIMARY": "sysObjectID (1.3.6.1.2.1.1.2.0) enterprise-number match is the PRIMARY brand discriminator (Snmp.oidOf + SnmpIdentityProbe.matchByPen/PEN_BRANDS), sysDescr token map is the FALLBACK. PENs VERIFIED via IANA registry/oidref/real captures: Zebra=10642, Brother=2435, Seiko-Epson=1248, Seiko-Instruments(SII)=263. Real Zebra sysDescr captured: 'Zebra Technologies ZD421-203dpi / internal wired' (token ZEBRA matches) + enterprise 1.3.6.1.4.1.10642. Brother dedicated serial OID 1.3.6.1.4.1.2435.2.3.9.4.2.1.5.5.1 (brInfoSerialNumber) NOW WIRED as a Brother-only fallback when the standard prtGeneralSerialNumber is empty.",
+      "pens_NOT_IN_IANA": "Star Micronics, Bixolon, Citizen do NOT appear in the IANA PEN registry (checked directly 2026-07-16) — likely no assigned PEN, so PEN matching can NEVER identify them; they rely SOLELY on the sysDescr token fallback (a real ceiling, not a fixable gap). The IANA '308 Star Technologies / 309 Micronics Computers' entries are DIFFERENT companies — do NOT use.",
+      "zebra_second_pen": "Zebra ALSO matches PEN 683 (ZebraNet/Eltron print servers) per LibreNMS ESI-MIB detection — added to PEN_BRANDS alongside 10642. So Zebra is covered by 10642 + 683 + sysDescr token + UDP-4201.",
+      "future_discovery_leads_UNIMPLEMENTED": "(1) BIXOLON has its OWN UDP discovery on ports 3337 + 9000 (per official Net Configuration Tool manual v4.18) — a positive-ID path like Epson ENPC / Zebra 4201, BUT the request/response packet format is NOT documented; do NOT ship guessed bytes (needs a capture). (2) STAR Micronics printers support mDNS/Bonjour (UDP 5353) and StarIO SMPort does discovery — likely discoverable via NsdManager like Sunmi, BUT the exact DNS-SD service type is unconfirmed. Both would raise Bixolon/Star from token-only to positively-identified once a capture/service-type is obtained.",
+      "brand_tokens_ASSUMED": "sysDescr fallback tokens: EPSON; STAR; ZEBRA/ZTC/ZBR (ZEBRA corroborated by real capture); BIXOLON/BXL; CITIZEN/CBM; BROTHER; SEIKO/SII/RP-E/RP-D/RP-F. Tokens + Zebra UDP offsets/request bytes are ASSUMED (researched, not hardware-verified). All centralized + overridable.",
+      "snmp_default_community": "'public', read-only, enabled-by-default is the confirmed general printer norm (PaperCut/HP/Xerox docs); Bixolon POS printers ship SNMP per their Network Connection Manual. Per-brand default NOT individually hardware-confirmed.",
+      "verified": "COMPILE ONLY + logic: BUILD SUCCESSFUL (lib + example assembleDebug); testDebugUnitTest tests=13 failures=0 (SnmpTest 6 incl oidOf, SnmpIdentityProbeTest 5 incl matchByPen, ZebraUdpParseTest 2). NO real Star/Zebra/Bixolon/Citizen/Brother printer tested.",
+      "sources": ["https://jfr.im/blog/2024/09/zebra-network-discovery-protocol/", "https://support.zebra.com/", "https://oidref.com/1.3.6.1.4.1.2435.2.3.9.4.2.1.5.5.1", "https://oidref.com/1.3.6.1.4.1.1248", "https://www.servicenow.com/community/itom-articles/how-to-successfully-set-up-snmp-discovery-for-zebra-printers-to/ta-p/3050532"]
+    },
+    "seiko_rp_via_snmp": {
+      "note": "Seiko RP-series receipt printers (RP-E10/E11, RP-D10, RP-F10) added SDK-free via SNMP (decision D7, 2026-07-16). Discovery = TCP-9100 /24 sweep (NetworkScanner) -> per-host SNMPv1 GET on UDP/161 for identity. SNMP GET/response is a hand-rolled BER codec (network/seiko/Snmp.kt), no snmp4j.",
+      "mechanism": "raw DatagramSocket UDP/161, SNMPv1, community 'public' (default, overridable).",
+      "oids_standard_MIB": {
+        "sysDescr.0": "1.3.6.1.2.1.1.1.0 (make/model text; brand match)",
+        "hrDeviceDescr.1": "1.3.6.1.2.1.25.3.2.1.3.1 (secondary model text)",
+        "prtGeneralSerialNumber.1": "1.3.6.1.2.1.43.5.1.1.17.1 (serial)",
+        "ifPhysAddress.1": "1.3.6.1.2.1.2.2.1.6.1 (MAC; works on Android 11+ unlike ARP)"
+      },
+      "brand_tokens_ASSUMED": "sysDescr/hrDeviceDescr matched against SEIKO/SII/RP-E/RP-D/RP-F (uppercased). These + the serial OID contents + that SNMP is enabled with community 'public' are ASSUMED pending a real-device capture. The OIDs themselves are standard RFC 1213/2790/3805.",
+      "verified": "COMPILE ONLY: BUILD SUCCESSFUL (:universal-printer-search:assembleDebug + :example:assembleDebug); SnmpTest tests=5 failures=0 errors=0 (encode matches hand-computed bytes; decode extracts serial/MAC; error-status + noSuchInstance -> null). NOT run against real RP hardware.",
+      "scope": "RP-series only. Seiko SLP720/721RT LABEL printers remain OUT (ESC/POS over 9100 but original app used the proprietary Sii SDK; no SDK-free serial/MAC path found; hardware serial only via front-panel button combo)."
+    }
+  },
+  "improvements_over_source": {
+    "subnetDetection": "Uses NetworkInterface enumeration (works on WiFi AND Ethernet) instead of the deprecated, WiFi-only WifiManager.connectionInfo.ipAddress in the source repo."
+  }
+}

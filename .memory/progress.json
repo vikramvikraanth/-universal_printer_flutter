@@ -1,0 +1,47 @@
+{
+  "_purpose": "Live status. Update as work lands. Never mark a phase 'done' without the verification evidence.",
+  "_ON_DEVICE_2026-07-24": "FIRST real hardware run of :universal-printer (+ search). Device: ZC-3588A (Rockchip RK3588, Android 12) at 192.168.80.39 via wireless adb — a GENERIC box, NOT Sunmi/iMin/Star, so built-in backends untested. VERIFIED on hardware: (1) example app builds+installs+launches, Compose UI renders (screenshot). (2) Network discovery works end-to-end — SNMP-enriched TCP-9100 /24 scan found a real Epson print server at 192.168.80.168 (brand=EPSON, name, mac=38:1A:52:D8:2D:3A, serial=XD6C001245). (3) NETWORK ESC/POS PRINT SUCCEEDED — pointed example Print->Net at .168, printer.print(sampleReceipt) returned PrintResult.Success ('Net .168: printed'). This exercises connect+4s-timeout + DLE EOT preflight (did not block) + EscPosRenderer + DantSu TCP write on real hardware => network print path moves ASSUMED->VERIFIED at SDK/protocol level. CAVEAT: 'Success' = printer accepted the job + write completed; PHYSICAL paper appearance (column alignment, inverted header, QR scannability) is USER-to-confirm, not observed from adb. STILL ASSUMED: PrintType.IMAGE (HTML->WebView->bitmap) never run; Sunmi/iMin/Star/USB backends (no such hardware). NOTE: example MainActivity Print->Net IP changed 192.168.80.27 -> 192.168.80.168 (the discovered printer).",
+  "currentPhase": "2026-07-16 (latest): FIVE brands ADDED SDK-free (decision D8) — Star/Bixolon/Citizen/Brother via a generalized brand-agnostic SNMP flow (network/seiko -> network/snmp, sysDescr token->brand map) and Zebra via a UDP-4201 broadcast flow (network/zebra). Facade: discoverSnmpPrinters() (grouped, all SNMP brands + GENERIC-with-identity), discoverZebraPrinters(), SNMP-enriched discoverNetworkPrinters(), probeSnmp(); discoverSeikoPrinters() now a filter wrapper. PrinterBrand += STAR/ZEBRA/BIXOLON/CITIZEN/BROTHER. Example: SNMP + Zebra buttons. VERIFIED BUILD SUCCESSFUL + testDebugUnitTest tests=10 failures=0 (brand-mapping + Zebra offset-parsing). Coverage: Epson(ENPC), Sunmi(mDNS), Zebra(UDP-4201), Star/Bixolon/Citizen/Brother/Seiko(SNMP), generic(TCP-9100 SNMP-enriched), USB. ASSUMED (NOT hardware-verified): sysDescr brand tokens, SNMP community 'public', Zebra request bytes/offsets. --- PRIOR (D7): SEIKO RP-series discovery ADDED SDK-free via SNMP (decision D7). New network/seiko/ package: Snmp.kt (hand-rolled SNMPv1 BER codec, no snmp4j) + SnmpClient.kt (UDP/161 GET) + SeikoSnmpProbe.kt (standard MIB OIDs + brand-token match) + SeikoDiscovery.kt (reuses NetworkScanner /24 sweep -> per-host SNMP identify). Wired into facade (discoverSeikoPrinters/probeSeiko/discoverAll) + PrinterBrand.SEIKO + example Seiko button. VERIFIED BUILD SUCCESSFUL (:universal-printer-search + :example assembleDebug) and SnmpTest tests=5 failures=0. Coverage now: Epson (ENPC/UDP + GS I), Sunmi (mDNS), Seiko RP (SNMP), generic IP (TCP-9100), USB. ASSUMED (NOT hardware-verified): that RP printers answer SNMP community 'public' and return a Seiko token + serial at the standard OIDs. NEXT: on-device runtime verification against a real RP printer.",
+  "phases": {
+    "P1e-multibrand": {
+      "status": "completed-compile-only",
+      "desc": "Star/Zebra/Bixolon/Citizen/Brother added SDK-free (D8). Generalized SNMP flow network/snmp/{Snmp,SnmpClient,SnmpIdentityProbe,SnmpDiscovery} (seiko folded in, network/seiko deleted) + Zebra UDP-4201 network/zebra/{ZebraUdpDiscovery,ZebraDiscovery}. Facade discoverSnmpPrinters/discoverZebraPrinters/probeSnmp + enriched discoverNetworkPrinters + discoverSeikoPrinters wrapper; discoverAll merge. Example SNMP+Zebra buttons (scrollable row). VERIFIED BUILD SUCCESSFUL + tests=10 failures=0. Brand tokens + Zebra offsets ASSUMED pending hardware."
+    },
+    "P1d-seiko": {
+      "status": "completed-compile-only",
+      "desc": "Seiko RP-series via SNMP (D7). network/seiko/{Snmp,SnmpClient,SeikoSnmpProbe,SeikoDiscovery}.kt; PrinterBrand.SEIKO; facade discoverSeikoPrinters()/probeSeiko()/discoverAll merge; example Seiko button; SnmpTest (5 cases, pass). VERIFIED BUILD SUCCESSFUL + unit tests green. Brand-token/serial/community ASSUMED pending real RP hardware (SLP720/721RT label printers still OUT)."
+    },
+    "P0-scaffold": {
+      "status": "completed",
+      "desc": "Gradle project (settings/build/libs.versions.toml/gradle.properties), wrapper (8.13), :universal-printer-search library + :example Compose app."
+    },
+    "P1-port-discovery": {
+      "status": "completed",
+      "desc": "Ported Epson (EpsonUdpDiscovery + EpsonTcpProbe + EpsonDiscovery), generic (NetworkScanner), USB (UsbPrinterScanner + UsbPermissionHelper), util (NetworkUtils), model (DiscoveredPrinter), facade (UniversalPrinterSearch). VERIFIED: BUILD SUCCESSFUL."
+    },
+    "P1b-sunmi": {
+      "status": "completed",
+      "desc": "Added SunmiDiscovery.kt (NsdManager/mDNS, service _afpovertcp._tcp., name prefix CloudPrint_) + facade discoverSunmiPrinters() + discoverAll() merge + PrinterBrand.SUNMI + example button. Protocol verified by decompiling external-printerlibrary2:1.0.13. VERIFIED BUILD SUCCESSFUL. Runtime NOT verified on hardware."
+    },
+    "P1c-identity": {
+      "status": "in-progress",
+      "desc": "Deep research on serial/MAC per brand (D6). DONE: Sunmi serial via new EscPosSerialProbe (GS I 68) + ARP MAC wired into enrichIdentity; Epson already had MAC+serial. VERIFIED BUILD SUCCESSFUL. GAPS: Rongta serial needs GS ( H exact bytes (device capture); Seiko serial has no SDK-free path found. Runtime verification pending."
+    },
+    "P2-rename": {
+      "status": "completed",
+      "desc": "Renamed to Universal Printer Search / com.universalprintersearch; purged 'foodhub'; re-verified BUILD SUCCESSFUL (exit 0)."
+    },
+    "P3-governance": {
+      "status": "completed",
+      "desc": "CLAUDE.md, AGENTS.md, .memory/*.json, .claude/settings.json SessionStart hook, and .claude/skills/universal-printer-search skill."
+    },
+    "P4-device-verify": {
+      "status": "PARTIALLY VERIFIED ON HARDWARE (2026-07-17)",
+      "desc": "Ran Discover All on a V3_MIX device against a real LAN. VERIFIED: EPSON x3 (TM-m30III x2 + TM-m30II) branded with MAC+serial+model via ENPC+SNMP (sysObjId 1.3.6.1.4.1.1248...); STAR TSP100IV x2 branded with MAC+model via StarXpand adapter (ip=null, keyed by MAC 00:11:62:...); ESC/POS GS I serial fallback VERIFIED (host .49 returned serial N42122ANT1360 though SNMP was off). GENERIC = hosts that did NOT answer SNMP (community 'public'): .2, .35, .49 -> no brand info -> 'Network Printer'. NOT yet seen on hardware: Sunmi cloud printer (none on LAN), Zebra, Bixolon/Citizen/Brother/Seiko (none present)."
+    },
+    "P5-publish": {
+      "status": "config-done + VERIFIED locally",
+      "desc": "maven-publish added to :universal-printer-search build.gradle.kts (group=com.universalprintersearch, artifactId=universal-printer-search, version=1.0.0, release variant + withSourcesJar + POM/license). jitpack.yml pins openjdk17 + runs publishToMavenLocal. VERIFIED: `publishToMavenLocal` exit 0 -> ~/.m2/.../1.0.0/ has AAR (183K), sources.jar (37K), .pom (correct coordinates), .module. Coordinates: com.universalprintersearch:universal-printer-search:1.0.0. Remote Maven repo (Sonatype/private) NOT configured — publication only (works with publishToMavenLocal + JitPack)."
+    }
+  }
+}

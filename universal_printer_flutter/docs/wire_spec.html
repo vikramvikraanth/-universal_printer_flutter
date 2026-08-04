@@ -1,0 +1,310 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wire Spec — Search &amp; Receipt Line Types</title>
+<style>
+  :root{
+    --ink:#0E1524; --surface:#151E30; --surface-2:#1B2740; --line:#26324f; --line-soft:#1f2b45;
+    --dart:#46C8FF; --dart-deep:#1e6f9a; --native:#F6A65A; --native-deep:#a5652c;
+    --wire:#B7C2DB; --good:#56D6A0; --violet:#B58BF0;
+    --text:#D8DFEF; --muted:#8592AD; --faint:#5c6885;
+    --mono:ui-monospace,"SF Mono","JetBrains Mono","Cascadia Code",Menlo,Consolas,monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; color:var(--text); font-family:var(--sans); line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+    background:
+      radial-gradient(1000px 560px at 50% -8%, #16223b 0%, rgba(22,34,59,0) 60%),
+      linear-gradient(var(--line-soft) 1px,transparent 1px) 0 0/34px 34px,
+      linear-gradient(90deg,var(--line-soft) 1px,transparent 1px) 0 0/34px 34px,
+      var(--ink);
+    background-blend-mode:normal,soft-light,soft-light,normal;
+  }
+  .wrap{max-width:1080px;margin:0 auto;padding:52px 24px 76px;}
+  .eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.22em;text-transform:uppercase;color:var(--faint);margin:0 0 13px;}
+  h1{font-weight:700;font-size:clamp(28px,4.6vw,42px);letter-spacing:-.02em;line-height:1.05;text-wrap:balance;margin:0 0 14px;}
+  h1 .cy{color:var(--dart);} h1 .am{color:var(--native);}
+  .lede{max-width:64ch;color:var(--muted);font-size:15.5px;margin:0;}
+  .lede code{font-family:var(--mono);font-size:12.5px;color:var(--wire);background:#0f1728;padding:1px 6px;border-radius:5px;}
+
+  .seclabel{font-family:var(--mono);font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:var(--faint);
+    margin:48px 0 16px;display:flex;align-items:center;gap:12px;}
+  .seclabel::after{content:"";flex:1;height:1px;background:var(--line-soft);}
+  .seclabel .pill{color:var(--dart);}
+  .seclabel.am .pill{color:var(--native);}
+
+  /* generic flow strip */
+  .flow{display:flex;align-items:stretch;gap:0;overflow-x:auto;padding-bottom:6px;}
+  .cell{flex:0 0 auto;border:1px solid var(--line);border-radius:11px;background:var(--surface-2);padding:12px 14px;min-width:180px;}
+  .cell .who{font-family:var(--mono);font-size:10px;letter-spacing:.16em;text-transform:uppercase;margin-bottom:7px;}
+  .cell.d{border-top:2px solid var(--dart);} .cell.d .who{color:var(--dart);}
+  .cell.n{border-top:2px solid var(--native);} .cell.n .who{color:var(--native);}
+  .cell.g{border-top:2px solid var(--good);} .cell.g .who{color:var(--good);}
+  .cell .code,.cell code{display:block;font-family:var(--mono);font-size:12px;line-height:1.5;color:var(--text);word-break:break-word;}
+  .arw{flex:0 0 auto;align-self:center;width:32px;text-align:center;color:var(--faint);font-family:var(--mono);font-size:16px;}
+
+  /* json packet */
+  .packet{font-family:var(--mono);font-size:12px;line-height:1.55;background:#0f1728;border:1px solid var(--line);
+    border-left:3px solid var(--wire);border-radius:9px;padding:11px 13px;overflow-x:auto;color:var(--wire);}
+  .packet .k{color:#8fb6ff;} .packet .s{color:var(--good);} .packet .c{color:var(--faint);} .packet .b{color:var(--violet);}
+
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+  .panel{border:1px solid var(--line);border-radius:13px;background:var(--surface);padding:16px;}
+  .panel h3{margin:0 0 4px;font-family:var(--mono);font-size:13px;font-weight:600;}
+  .panel .cap{color:var(--faint);font-size:11.5px;font-family:var(--mono);margin:0 0 11px;letter-spacing:.03em;}
+  .panel.d h3{color:var(--dart);} .panel.n h3{color:var(--native);}
+
+  /* line-type catalog */
+  .catalog{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+  .lt{border:1px solid var(--line);border-radius:12px;background:linear-gradient(180deg,var(--surface-2),var(--surface));padding:14px 15px;}
+  .lt .hd{display:flex;align-items:center;gap:9px;margin-bottom:10px;flex-wrap:wrap;}
+  .lt .type{font-family:var(--mono);font-size:11.5px;font-weight:600;color:#0f1728;background:var(--wire);padding:2px 8px;border-radius:6px;}
+  .lt .nm{font-size:13.5px;font-weight:650;letter-spacing:-.01em;}
+  .lt .tag{font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--native);
+    border:1px solid var(--native-deep);border-radius:20px;padding:1px 8px;margin-left:auto;}
+  .lt .lane{display:flex;gap:8px;align-items:baseline;margin-top:7px;}
+  .lt .lbl{flex:0 0 42px;font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;padding-top:2px;}
+  .lt .dcall{color:var(--dart);font-family:var(--mono);font-size:11.5px;line-height:1.45;word-break:break-word;}
+  .lt .lbl.d{color:var(--dart);} .lt .lbl.w{color:var(--wire);} .lt .lbl.n{color:var(--native);}
+  .lt .wire{font-family:var(--mono);font-size:11px;line-height:1.5;color:var(--wire);background:#0f1728;border-radius:7px;padding:7px 9px;overflow-x:auto;flex:1;min-width:0;}
+  .lt .wire .k{color:#8fb6ff;} .lt .wire .s{color:var(--good);} .lt .wire .d{color:var(--muted);}
+  .lt .pe{color:var(--native);font-family:var(--mono);font-size:11.5px;}
+
+  .note{font-size:12px;color:var(--muted);margin:14px 2px 0;}
+  .note code{font-family:var(--mono);color:var(--wire);font-size:11px;}
+  .note b{color:var(--text);font-weight:600;}
+
+  /* enum legend */
+  .legend{display:grid;grid-template-columns:repeat(2,1fr);gap:10px 22px;border:1px solid var(--line);border-radius:13px;background:var(--surface);padding:16px 18px;}
+  .en{display:flex;gap:10px;align-items:baseline;font-size:12.5px;}
+  .en .name{font-family:var(--mono);color:var(--native);flex:0 0 118px;font-size:12px;}
+  .en .vals{font-family:var(--mono);color:var(--wire);font-size:11.5px;}
+  .en .vals b{color:var(--dart);font-weight:600;}
+
+  @media (max-width:720px){
+    .two,.catalog,.legend{grid-template-columns:1fr;}
+    .en .name{flex-basis:100px;}
+  }
+</style>
+</head>
+<body>
+
+
+<div class="wrap">
+  <p class="eyebrow">Wire Format · Search &amp; Receipt</p>
+  <h1>What actually crosses:<br><span class="cy">search records</span> &amp; <span class="am">receipt line types</span></h1>
+  <p class="lede">
+    Every payload is a plain map encoded by Flutter's <code>StandardMessageCodec</code>. Enums travel as their
+    Kotlin <code>.name</code> string. For a receipt, each element carries a <code>"type"</code> discriminator —
+    that single field is what native <code>Bridge.buildDocument</code> switches on to rebuild the right
+    <code>PrintElement</code>.
+  </p>
+
+  <!-- ================= SEARCH ================= -->
+  <div class="seclabel"><span class="pill">◆</span> Search — one call out, a list of records back</div>
+  <div class="flow">
+    <div class="cell d">
+      <div class="who">Dart</div>
+      <span class="code">discoverNetwork()</span>
+    </div>
+    <div class="arw">→</div>
+    <div class="cell n">
+      <div class="who">method · no args</div>
+      <span class="code">"discoverNetwork"</span>
+    </div>
+    <div class="arw">→</div>
+    <div class="cell n">
+      <div class="who">native work</div>
+      <span class="code">discovery<br>&nbsp;.discoverNetwork…()<br>→ Bridge.printersToList</span>
+    </div>
+    <div class="arw">↩</div>
+    <div class="cell g">
+      <div class="who">returns · List&lt;record&gt;</div>
+      <span class="code">List&lt;Map&gt;<br>→ Dart .map(fromMap)</span>
+    </div>
+  </div>
+
+  <div class="two" style="margin-top:16px;">
+    <div class="panel n">
+      <h3>one printer record on the wire</h3>
+      <p class="cap">native → Dart · every field, every discover* method</p>
+      <div class="packet">
+{<br>
+&nbsp;&nbsp;<span class="k">"name"</span>: <span class="s">"TM-m30III"</span>,<br>
+&nbsp;&nbsp;<span class="k">"connectionType"</span>: <span class="s">"NETWORK"</span>,<br>
+&nbsp;&nbsp;<span class="k">"ipAddress"</span>: <span class="s">"192.168.80.57"</span>, <span class="k">"port"</span>: 9100,<br>
+&nbsp;&nbsp;<span class="k">"macAddress"</span>: <span class="s">"A4:D7:3C:B1:C7:63"</span>,<br>
+&nbsp;&nbsp;<span class="k">"serialNumber"</span>: <span class="s">"XBVW061906"</span>,<br>
+&nbsp;&nbsp;<span class="k">"brand"</span>: <span class="s">"EPSON"</span>, <span class="k">"model"</span>: <span class="s">"TM-m30III"</span>,<br>
+&nbsp;&nbsp;<span class="k">"emulation"</span>: <span class="b">null</span>,<br>
+&nbsp;&nbsp;<span class="k">"vendorId"</span>: <span class="b">null</span>, <span class="k">"productId"</span>: <span class="b">null</span>,<br>
+&nbsp;&nbsp;<span class="k">"usbDeviceName"</span>: <span class="b">null</span>,<br>
+&nbsp;&nbsp;<span class="c">// computed native-side:</span><br>
+&nbsp;&nbsp;<span class="k">"isImpact"</span>: <span class="b">false</span>,<br>
+&nbsp;&nbsp;<span class="k">"effectiveEmulation"</span>: <span class="s">"ESC/POS"</span><br>
+}
+      </div>
+    </div>
+    <div class="panel d">
+      <h3>the two computed fields</h3>
+      <p class="cap">resolved on the native side before crossing</p>
+      <p class="note" style="margin-top:2px;">
+        <b>isImpact</b> — true when the model matches a 9-pin token (<code>TM-U*</code>, <code>SP742</code>…). Dart uses it to
+        force <code>PrintType.text</code> and drop graphics.
+      </p>
+      <p class="note">
+        <b>effectiveEmulation</b> — <code>emulation ?? "ESC/POS"</code>. A bare port-9100 host reports
+        <code>ESC/POS</code> rather than <code>null</code>, so the UI always has a language to show.
+      </p>
+      <p class="note">
+        Unknown enum strings never throw: <code>fromWire()</code> falls back
+        (<code>brand → UNKNOWN</code>, <code>connectionType → network</code>).
+      </p>
+    </div>
+  </div>
+
+  <!-- ================= RECEIPT ENVELOPE ================= -->
+  <div class="seclabel am"><span class="pill">◆</span> Receipt — create by handle, then send the document</div>
+  <div class="flow">
+    <div class="cell d"><div class="who">Dart</div><span class="code">networkPrinter("…")</span></div>
+    <div class="arw">→</div>
+    <div class="cell n"><div class="who">"createPrinter"</div><span class="code">{kind,host,port}<br>→ registry["p1"]</span></div>
+    <div class="arw">↩</div>
+    <div class="cell g"><div class="who">returns</div><span class="code">"p1" (handle)</span></div>
+    <div class="arw">·</div>
+    <div class="cell d"><div class="who">Dart</div><span class="code">printer.printDocument(<br>&nbsp;doc, type)</span></div>
+    <div class="arw">→</div>
+    <div class="cell n"><div class="who">"printDocument"</div><span class="code">buildDocument(map)<br>→ printReceipt()</span></div>
+  </div>
+
+  <div class="panel n" style="margin-top:16px;">
+    <h3>the printDocument envelope</h3>
+    <p class="cap">Dart → native · the document is a map; elements is the ordered line list</p>
+    <div class="packet">
+{ <span class="k">"handle"</span>: <span class="s">"p1"</span>, <span class="k">"type"</span>: <span class="s">"TEXT"</span>, &nbsp;<span class="c">// or "IMAGE" (HTML→WebView→bitmap)</span><br>
+&nbsp;&nbsp;<span class="k">"document"</span>: {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="k">"paper"</span>: <span class="s">"MM_80"</span>, <span class="k">"cut"</span>: <span class="s">"PARTIAL"</span>, <span class="k">"openDrawer"</span>: <span class="b">false</span>, <span class="k">"renderMode"</span>: <span class="s">"AUTO"</span>,<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="k">"elements"</span>: [ <span class="c">/* each has a "type" discriminator — see catalog ↓ */</span> ]<br>
+&nbsp;&nbsp;}<br>
+}
+    </div>
+  </div>
+
+  <!-- ================= LINE TYPE CATALOG ================= -->
+  <div class="seclabel am"><span class="pill">▤</span> Line types — Dart call → wire → native PrintElement</div>
+  <div class="catalog">
+
+    <div class="lt">
+      <div class="hd"><span class="type">"text"</span><span class="nm">Text line</span></div>
+      <div class="lane"><span class="lbl d">dart</span><span class="dcall">text("HI", align: center, bold: true, invert: true, size: large)</span></div>
+      <div class="lane"><span class="lbl w">wire</span><span class="wire">{<span class="k">type</span>:<span class="s">"text"</span>, <span class="k">text</span>, <span class="k">align</span>:<span class="s">"CENTER"</span>, <span class="k">bold</span>, <span class="k">underline</span>, <span class="k">invert</span>, <span class="k">size</span>:<span class="s">"LARGE"</span>}</span></div>
+      <div class="lane"><span class="lbl n">kt</span><span class="pe">→ PrintElement.Text</span></div>
+    </div>
+
+    <div class="lt">
+      <div class="hd"><span class="type">"columns"</span><span class="nm">Column row</span></div>
+      <div class="lane"><span class="lbl d">dart</span><span class="dcall">columns([Column("Qty"), Column("Amt", weight:2, align:right)])</span></div>
+      <div class="lane"><span class="lbl w">wire</span><span class="wire">{<span class="k">type</span>:<span class="s">"columns"</span>, <span class="k">cells</span>:[{<span class="k">text</span>, <span class="k">weight</span>, <span class="k">align</span>:<span class="s">"RIGHT"</span>}]}</span></div>
+      <div class="lane"><span class="lbl n">kt</span><span class="pe">→ Columns(List&lt;Column&gt;)</span></div>
+    </div>
+
+    <div class="lt">
+      <div class="hd"><span class="type">"row"</span><span class="nm">Two-column row</span></div>
+      <div class="lane"><span class="lbl d">dart</span><span class="dcall">row("Coffee", "3.50")</span></div>
+      <div class="lane"><span class="lbl w">wire</span><span class="wire">{<span class="k">type</span>:<span class="s">"row"</span>, <span class="k">left</span>, <span class="k">right</span>, <span class="k">leftWeight</span>, <span class="k">rightWeight</span>}</span></div>
+      <div class="lane"><span class="lbl n">kt</span><span class="pe">→ Columns(left,right)</span></div>
+    </div>
+
+    <div class="lt">
+      <div class="hd"><span class="type">"imageUrl"</span><span class="nm">Image by URL</span><span class="tag">no-op on impact</span></div>
+      <div class="lane"><span class="lbl d">dart</span><span class="dcall">imageUrl("https://…/logo.png", align: center)</span></div>
+      <div class="lane"><span class="lbl w">wire</span><span class="wire">{<span class="k">type</span>:<span class="s">"imageUrl"</span>, <span class="k">url</span>, <span class="k">align</span>, <span class="k">invert</span>, <span class="k">dither</span>}</span></div>
+      <div class="lane"><span class="lbl n">kt</span><span class="pe">→ ImageUrl · Glide caches offline</span></div>
+    </div>
+
+    <div class="lt">
+      <div class="hd"><span class="type">"image"</span><span class="nm">Raw bitmap</span><span class="tag">bytes copy</span></div>
+      <div class="lane"><span class="lbl d">dart</span><span class="dcall">image(Uint8List bytes, align: center)</span></div>
+      <div class="lane"><span class="lbl w">wire</span><span class="wire">{<span class="k">type</span>:<span class="s">"image"</span>, <span class="k">bytes</span>:<span class="d">‹Uint8List›</span>, <span class="k">align</span>, <span class="k">invert</span>, <span class="k">dither</span>}</span></div>
+      <div class="lane"><span class="lbl n">kt</span><span class="pe">→ decodeByteArray → Image</span></div>
+    </div>
+
+    <div class="lt">
+      <div class="hd"><span class="type">"barcode"</span><span class="nm">Barcode</span></div>
+      <div class="lane"><span class="lbl d">dart</span><span class="dcall">barcode("123…", symbology: ean13, heightDots: 100)</span></div>
+      <div class="lane"><span class="lbl w">wire</span><span class="wire">{<span class="k">type</span>:<span class="s">"barcode"</span>, <span class="k">data</span>, <span class="k">symbology</span>:<span class="s">"EAN13"</span>, <span class="k">heightDots</span>, <span class="k">align</span>}</span></div>
+      <div class="lane"><span class="lbl n">kt</span><span class="pe">→ Barcode · ZXing renders</span></div>
+    </div>
+
+    <div class="lt">
+      <div class="hd"><span class="type">"qr"</span><span class="nm">QR code</span></div>
+      <div class="lane"><span class="lbl d">dart</span><span class="dcall">qr("https://…", sizeDots: 200, errorLevel: h)</span></div>
+      <div class="lane"><span class="lbl w">wire</span><span class="wire">{<span class="k">type</span>:<span class="s">"qr"</span>, <span class="k">data</span>, <span class="k">sizeDots</span>, <span class="k">errorLevel</span>:<span class="s">"H"</span>, <span class="k">align</span>}</span></div>
+      <div class="lane"><span class="lbl n">kt</span><span class="pe">→ QrCode · ZXing renders</span></div>
+    </div>
+
+    <div class="lt">
+      <div class="hd"><span class="type">"feed"</span><span class="nm">Line feed</span></div>
+      <div class="lane"><span class="lbl d">dart</span><span class="dcall">feed(2)</span></div>
+      <div class="lane"><span class="lbl w">wire</span><span class="wire">{<span class="k">type</span>:<span class="s">"feed"</span>, <span class="k">lines</span>: 2}</span></div>
+      <div class="lane"><span class="lbl n">kt</span><span class="pe">→ Feed(lines)</span></div>
+    </div>
+
+    <div class="lt">
+      <div class="hd"><span class="type">"divider"</span><span class="nm">Divider rule</span></div>
+      <div class="lane"><span class="lbl d">dart</span><span class="dcall">divider()</span></div>
+      <div class="lane"><span class="lbl w">wire</span><span class="wire">{<span class="k">type</span>:<span class="s">"divider"</span>}</span></div>
+      <div class="lane"><span class="lbl n">kt</span><span class="pe">→ Divider</span></div>
+    </div>
+
+    <div class="lt">
+      <div class="hd"><span class="type">"raw"</span><span class="nm">Raw ESC/POS</span><span class="tag">escape hatch</span></div>
+      <div class="lane"><span class="lbl d">dart</span><span class="dcall">raw(Uint8List escposBytes)</span></div>
+      <div class="lane"><span class="lbl w">wire</span><span class="wire">{<span class="k">type</span>:<span class="s">"raw"</span>, <span class="k">bytes</span>:<span class="d">‹Uint8List›</span>}</span></div>
+      <div class="lane"><span class="lbl n">kt</span><span class="pe">→ Raw(bytes)</span></div>
+    </div>
+
+  </div>
+  <p class="note">
+    Native dispatch is one <code>when(e["type"])</code> in <b>Bridge.buildDocument</b> — an unknown or missing
+    <code>type</code> is skipped, not fatal. Impact printers run the document through <code>textOnly()</code>
+    first, so <code>imageUrl</code>/<code>image</code> are dropped and <code>barcode</code>/<code>qr</code> collapse to their data text.
+  </p>
+
+  <!-- ================= RETURN ================= -->
+  <div class="seclabel"><span class="pill" style="color:var(--good)">◆</span> The reply — one of two shapes</div>
+  <div class="two">
+    <div class="panel" style="border-left:3px solid var(--good)">
+      <h3 style="color:var(--good)">success</h3>
+      <p class="cap">native → Dart → PrintResult.success</p>
+      <div class="packet">{ <span class="k">"status"</span>: <span class="s">"success"</span>, <span class="k">"warnings"</span>: [<span class="s">"PAPER_NEAR_END"</span>] }</div>
+    </div>
+    <div class="panel" style="border-left:3px solid var(--native)">
+      <h3 style="color:var(--native)">error</h3>
+      <p class="cap">categorized so callers can react (retry vs. reload paper)</p>
+      <div class="packet">{ <span class="k">"status"</span>: <span class="s">"error"</span>, <span class="k">"reason"</span>: <span class="s">"NOT_CONNECTED"</span>, <span class="k">"message"</span>: <span class="s">"…"</span> }</div>
+    </div>
+  </div>
+
+  <!-- ================= ENUM LEGEND ================= -->
+  <div class="seclabel"><span class="pill" style="color:var(--wire)">▦</span> Enum wire values — the Kotlin <code style="font-family:var(--mono);font-size:.85em;color:var(--wire)">.name</code> strings</div>
+  <div class="legend">
+    <div class="en"><span class="name">paper</span><span class="vals"><b>MM_58</b> · MM_72 · MM_80 · IMPACT_76</span></div>
+    <div class="en"><span class="name">align</span><span class="vals"><b>LEFT</b> · CENTER · RIGHT</span></div>
+    <div class="en"><span class="name">size</span><span class="vals"><b>NORMAL</b> · WIDE · TALL · LARGE</span></div>
+    <div class="en"><span class="name">cut</span><span class="vals">NONE · <b>PARTIAL</b> · FULL</span></div>
+    <div class="en"><span class="name">renderMode</span><span class="vals"><b>AUTO</b> · TEXT · IMAGE</span></div>
+    <div class="en"><span class="name">type</span><span class="vals"><b>TEXT</b> · IMAGE</span></div>
+    <div class="en"><span class="name">symbology</span><span class="vals"><b>CODE128</b> · CODE39 · EAN13 · UPCA</span></div>
+    <div class="en"><span class="name">errorLevel</span><span class="vals">L · <b>M</b> · Q · H</span></div>
+    <div class="en"><span class="name">reason</span><span class="vals">TIMEOUT · NOT_CONNECTED · PAPER_OUT · COVER_OPEN · …</span></div>
+    <div class="en"><span class="name">connectionType</span><span class="vals"><b>NETWORK</b> · USB</span></div>
+  </div>
+</div>
+
+</body>
+</html>

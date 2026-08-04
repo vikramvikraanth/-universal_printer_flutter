@@ -1,0 +1,4 @@
+jdk:
+  - openjdk17
+install:
+  - ./gradlew :universal-printer-search:publishToMavenLocal -x test

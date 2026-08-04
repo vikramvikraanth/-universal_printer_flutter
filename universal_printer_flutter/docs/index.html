@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>universal_printer_flutter — Docs</title>
+<style>
+  :root{
+    --ink:#0E1524; --surface:#151E30; --surface-2:#1B2740; --line:#26324f; --line-soft:#1f2b45;
+    --dart:#46C8FF; --native:#F6A65A; --text:#D8DFEF; --muted:#8592AD; --faint:#5c6885;
+    --mono:ui-monospace,"SF Mono","JetBrains Mono","Cascadia Code",Menlo,Consolas,monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;color:var(--text);font-family:var(--sans);line-height:1.5;-webkit-font-smoothing:antialiased;
+    background:
+      radial-gradient(1000px 560px at 50% -8%,#16223b 0%,rgba(22,34,59,0) 60%),
+      linear-gradient(var(--line-soft) 1px,transparent 1px) 0 0/34px 34px,
+      linear-gradient(90deg,var(--line-soft) 1px,transparent 1px) 0 0/34px 34px,
+      var(--ink);
+    background-blend-mode:normal,soft-light,soft-light,normal;
+  }
+  .wrap{max-width:760px;margin:0 auto;padding:64px 24px 80px;}
+  .eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.22em;text-transform:uppercase;color:var(--faint);margin:0 0 13px;}
+  h1{font-weight:700;font-size:clamp(30px,5vw,44px);letter-spacing:-.02em;line-height:1.05;margin:0 0 12px;text-wrap:balance;}
+  h1 .cy{color:var(--dart);} h1 .am{color:var(--native);}
+  .lede{max-width:60ch;color:var(--muted);font-size:15.5px;margin:0 0 36px;}
+  .lede code{font-family:var(--mono);font-size:12.5px;color:#B7C2DB;background:#0f1728;padding:1px 6px;border-radius:5px;}
+  .cards{display:grid;gap:16px;}
+  a.card{
+    display:block;text-decoration:none;color:inherit;border:1px solid var(--line);border-radius:14px;
+    background:linear-gradient(180deg,var(--surface-2),var(--surface));padding:20px 22px;transition:border-color .15s,transform .15s;
+  }
+  a.card:hover{border-color:var(--dart);transform:translateY(-2px);}
+  a.card.am:hover{border-color:var(--native);}
+  a.card:focus-visible{outline:2px solid var(--dart);outline-offset:3px;}
+  .card .n{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);}
+  .card h2{margin:8px 0 6px;font-size:19px;letter-spacing:-.01em;}
+  .card.d h2{color:var(--dart);} .card.am h2{color:var(--native);}
+  .card p{margin:0;color:var(--muted);font-size:13.5px;}
+  .card .go{margin-top:12px;font-family:var(--mono);font-size:12px;color:var(--faint);}
+  .foot{margin-top:34px;color:var(--faint);font-size:12.5px;font-family:var(--mono);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p class="eyebrow">universal_printer_flutter · docs</p>
+  <h1><span class="cy">Flutter</span> ⇄ <span class="am">native</span> printer plugin</h1>
+  <p class="lede">
+    A federated Flutter plugin wrapping the verified Kotlin printer SDK over a <code>MethodChannel</code> —
+    printer discovery (Epson / Sunmi / Zebra / Star / SNMP / USB) and ESC/POS printing. These diagrams
+    document how the two sides talk.
+  </p>
+
+  <div class="cards">
+    <a class="card d" href="channel_architecture.html">
+      <div class="n">01 · Architecture</div>
+      <h2>Channel architecture</h2>
+      <p>The Dart and native ends, the serialization boundary, the two round-trips (stateless discovery, stateful print-by-handle), and the method contract.</p>
+      <div class="go">open →</div>
+    </a>
+    <a class="card am" href="wire_spec.html">
+      <div class="n">02 · Wire format</div>
+      <h2>Search &amp; receipt line types</h2>
+      <p>Wire-level payloads: the search record, the printDocument envelope, every receipt line type (Dart call → JSON → native PrintElement), result shapes, and the enum legend.</p>
+      <div class="go">open →</div>
+    </a>
+  </div>
+
+  <p class="foot">self-contained · no external assets · host anywhere (GitHub Pages, Netlify, S3)</p>
+</div>
+</body>
+</html>

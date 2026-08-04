@@ -1,0 +1,27 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+  package="com.universalprinter.universal_printer_flutter">
+
+    <!-- Network (TCP/9100) printing + raw-socket discovery/reachability. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Required to receive the ENPC UDP broadcast replies for Epson discovery. -->
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
+
+    <!-- USB printing/discovery via UsbManager (host mode). required=false: network still works without it. -->
+    <uses-feature
+        android:name="android.hardware.usb.host"
+        android:required="false" />
+
+    <!--
+      Android 11+ (API 30) package visibility. Built-in-printer backends bindService() to a vendor
+      AIDL service in another package; without declaring it here bindService returns false on API 30+.
+        · Sunmi: package "woyou.aidlservice.jiuiv5"
+        · iMin : package "com.imin.printerservice"
+    -->
+    <queries>
+        <package android:name="woyou.aidlservice.jiuiv5" />
+        <package android:name="com.imin.printerservice" />
+    </queries>
+
+</manifest>

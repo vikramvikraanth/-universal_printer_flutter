@@ -1,0 +1,14 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "printf '\\n=== universal-printer-search :: .memory (read before acting) ===\\nSTRICT RULES are in CLAUDE.md (evidence before assertion). Source of truth = .memory/*.json.\\n\\n--- progress.json ---\\n'; cat .memory/progress.json 2>/dev/null; printf '\\n--- decisions.json ---\\n'; cat .memory/decisions.json 2>/dev/null; printf '\\n--- verified-facts.json (anti-hallucination anchor; full file) ---\\n'; cat .memory/verified-facts.json 2>/dev/null; printf '\\n'"
+          }
+        ]
+      }
+    ]
+  }
+}

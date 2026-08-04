@@ -1,0 +1,18 @@
+# A .pubignore REPLACES .gitignore for pub publish, so mirror the ignores here too.
+
+# Dev-only diagram docs — kept in-repo (GitHub Pages / local), not shipped.
+docs/
+
+# Build / tool artifacts
+.dart_tool/
+/build/
+/coverage/
+/pubspec.lock
+.flutter-plugins-dependencies
+
+# IDE / OS cruft
+*.iml
+*.ipr
+*.iws
+.idea/
+.DS_Store

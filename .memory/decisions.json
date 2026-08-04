@@ -1,0 +1,407 @@
+{
+  "_purpose": "Append-only log of decisions + rationale + who decided. Read before acting; append new decisions; never silently reverse — supersede with a new entry.",
+  "decisions": [
+    {
+      "id": "D37",
+      "date": "2026-08-04",
+      "by": "claude+user",
+      "decision": "iOS implementation of the universal_printer_flutter plugin = NATIVE SWIFT (supersedes D31's KMP recommendation for the plugin context). v1 scope = Network ESC/POS + Star; USB and Sunmi/iMin built-in are Android-only (return error/empty). Increment 1 (this session) = network core + discovery; Star = increment 2 (pending).",
+      "design": "Replaced the iOS no-crash stub with a real Swift implementation of the same MethodChannel contract. Dart change: _ensureSupported() now allows Platform.isAndroid || Platform.isIOS (was Android-only). 8 Swift files under ios/universal_printer_flutter/Sources/universal_printer_flutter/: Models.swift (enums decode Kotlin .name strings; DiscoveredPrinter.toMap with NSNull for nils), EscPos.swift (NEW ESC/POS byte encoder — ESC @/ESC a/ESC E/ESC -/GS B/GS !/ESC d/GS V + GS v 0 raster; text via isoLatin1 lossy), ColumnLayout.swift (1:1 port of Android ColumnLayout), CodeImages.swift (CoreImage CIQRCodeGenerator/CICode128BarcodeGenerator -> CGImage -> GS v 0 raster, port of EscPosRaster.bands incl. vertical flip), Bridge.swift (map->ReceiptDocument, same 'type' switch; FlutterStandardTypedData->Data for bytes), NetworkPrinter.swift (NWConnection connect+send+proportional drain mirroring D32), Discovery.swift (NWConnection ping + /24 TCP-9100 scan + NWBrowser Bonjour for Sunmi + getifaddrs local IP), UniversalPrinterFlutterPlugin.swift (routes all methods, PrinterRegistry dict, replies on main thread). discoverEpson currently falls back to TCP scan; ENPC UDP deferred to increment 2 with Star.",
+      "verified": "VERIFIED (as far as env allows): the 6 non-Flutter Swift files TYPE-CHECK clean against the iOS SDK — `xcrun --sdk iphonesimulator swiftc -typecheck -target arm64-apple-ios13.0-simulator Models/EscPos/ColumnLayout/CodeImages/Discovery/NetworkPrinter.swift` exit 0. Bridge.swift + plugin syntax-parse clean (only the expected 'no Flutter module' which the pod build supplies). flutter analyze lib = No issues. Android untouched (only iOS files + 1 Dart guard line).",
+      "not_done_assumed": "FULL Xcode/pod iOS build NOT run — this machine's Xcode has the iOS SDK but NO iOS simulator RUNTIME/device platform installed (`flutter build ios`/`--simulator` both fail: 'iOS 26.5 is not installed', no destination). So Flutter-type usage in Bridge/plugin (FlutterResult/FlutterError/addMethodCallDelegate) and the whole-plugin link are UNVERIFIED beyond syntax; nothing ran on a device. ESC/POS byte parity with DantSu, CoreGraphics raster orientation/luminance, ENPC (deferred), and Bonjour IP resolution are all ASSUMED. verified-facts unchanged.",
+      "supersedable": true
+    },
+    {
+      "id": "D36",
+      "date": "2026-07-30",
+      "by": "claude+user",
+      "decision": "Wrapped the Kotlin SDK as a federated Flutter plugin `universal_printer_flutter/` (repo root). User-confirmed approach: do NOT rewrite in Dart — MOVE the verified Kotlin into the plugin's android/ folder and bridge via native MethodChannel. Android-only; iOS is a deliberate NO-CRASH STUB.",
+      "design": "flutter create plugin scaffold (AGP 8.11.1, Kotlin 2.2.20, compileSdk 36). Copied both modules' src (71 main + 31 test .kt) into android/src/{main,test}/kotlin (packages com.universalprinter + com.universalprintersearch coexist with the plugin pkg com.universalprinter.universal_printer_flutter). android/build.gradle.kts: minSdk 26, jitpack repo, concrete vendor coords (DantSu 3.3.0, stario10 1.12.0, sunmi printerlibrary 1.0.19, imin IminPrinterLibrary V2.0.0.18, zxing 3.5.3, glide 4.16.0), JUnit4 test config (removed scaffold's useJUnitPlatform, added isReturnDefaultValues). Merged manifests (INTERNET/WIFI_STATE/NETWORK_STATE/CHANGE_WIFI_MULTICAST_STATE, USB host feature, Sunmi/iMin <queries>). Bridge = MethodChannel 'universal_printer_flutter': UniversalPrinterFlutterPlugin (FlutterPlugin+ActivityAware, Main-scope coroutines -> IO -> reply on Main) + Bridge.kt (JSON<->PrintDocument/DiscoveredPrinter/PrintResult, enums cross as Kotlin .name). Stateful Printer handled via a native ConcurrentHashMap handle registry (createPrinter->id, printDocument/closePrinter by id). Dart: lib/src/models.dart (enums carry .wire = Kotlin name; DiscoveredPrinter/PrintDocument builder/PrintResult), lib/universal_printer_flutter.dart facade (Platform.isAndroid guard -> UnsupportedError), lib/src/printer.dart handle. iOS stub: valid podspec + Swift registrant returns FlutterError(UNSUPPORTED_PLATFORM), no fatalError/force-unwrap. Flutter example app (discover buttons, paper chips, cards w/ isImpact+effectiveEmulation, Test TEXT/IMAGE, webview_flutter HTML preview).",
+      "verified": "VERIFIED: (1) flutter analyze lib+test clean; (2) 6 Dart model tests pass (fromMap/toJson round-trip); (3) flutter build apk --debug SUCCESS (compiled moved Kotlin + bridge + all vendor deps into an APK); (4) MOVED KOTLIN TESTS = 128 tests, 0 skipped, 0 failures, 0 errors via :universal_printer_flutter:testDebugUnitTest (SAME count as pre-move -> no logic drift); (5) iOS `flutter build ios --config-only` (pod install) SUCCEEDED with the stub -> the 'empty ios folder crashes' concern is resolved (valid podspec integrates cleanly).",
+      "not_done_assumed": "On-device channel round-trip NOT run — iMin D4Pro (ND4504PH3327F0001) USB disconnected mid-session (adb: no devices). So Dart->native discovery + Net TEXT print crossing the MethodChannel is ASSUMED (code path builds/tests green) not screen-verified. Vendor repos (jitpack) had to be added to the EXAMPLE app's example/android/build.gradle.kts allprojects{} (transitive deps resolve against the CONSUMER's repos, not the plugin's) — real consumers must do the same. probeEpson/probeSnmp + progressive EventChannel + charset deferred (not in v1 bridge).",
+      "supersedable": true
+    },
+    {
+      "id": "D35",
+      "date": "2026-07-29",
+      "by": "claude+user",
+      "decision": "Default emulation to ESC/POS when unknown. User instruction: 'if no emulation find its default escpos'. Also diagnosed (on real hardware) why a TM-U220II impact printer is NOT auto-identified by network discovery.",
+      "change": "(1) NetworkScanner.scanSubnet() now sets emulation = Emulation.ESC_POS on the GENERIC printer it builds (a host accepting raw port-9100 is an ESC/POS receipt printer by the scanner's own class-doc definition). (2) DiscoveredPrinter gained computed `val effectiveEmulation = emulation ?: Emulation.ESC_POS` — non-destructive default covering USB/Sunmi/any null source without overwriting positively-identified Star/ZPL values. (3) Example card shows effectiveEmulation instead of hiding the line when null.",
+      "diagnosis_TM_U220II": "On-device recon from the iMin D4Pro (192.168.80.49, wlan0) against the shop LAN: TCP-9100 scan found 6 hosts (.4 .35 .52 .57 .63 .168). ENPC UDP fn=0x02 model probe: .57 -> 'MFG:EPSON;CMD:ESC/POS;MDL:TM-m30III' (VERIFIED reply). .4/.35/.52 do NOT answer ENPC at all (VERIFIED: no reply, 3s timeout). Our SDK learns the MODEL only via Epson ENPC (EpsonUdpDiscovery fn=0x02 MDL token) — the TCP path (EpsonTcpProbe) sends only GS I 66 maker + GS I 68 serial, never the model. The POS (com.t2s.mytakeaway) Template config lists 'TM-U220II, TSP100IV, TM-m30III, Printer' as MANUALLY-assigned printers. Conclusion: the TM-U220II here is behind a generic serial->Ethernet / raw-9100 print-server that does NOT speak ENPC, so no model is obtainable over the network -> isImpact (model-based) can never fire for it. Auto impact-detection requires the model, which only ENPC-native Epson NICs advertise. For raw-9100 impact printers the model must be supplied manually (as the POS does).",
+      "verified": "BUILD SUCCESSFUL; :universal-printer-search:testDebugUnitTest tests=26 failures=0 (+4 DiscoveredPrinterTest: emulation default keeps Star/ZPL, defaults ESC/POS; isImpact by model/name); :universal-printer tests=102 failures=0; example APK installed on iMin D4Pro (ND4504PH3327F0001), MainActivity resumed. Network scan + ENPC probe results above are VERIFIED via adb shell toybox nc/od against the live LAN.",
+      "not_done": "Did NOT drive our app's Network button on-device — device is a DUAL-DISPLAY KIOSK; the POS app com.t2s.mytakeaway owns the touch display and reclaims foreground, so adb input tap / screencap target its display, not ours. Live in-app discovery of .4/.35/.52 as GENERIC/ESC-POS is ASSUMED (code-verified path) not screen-captured. No TM-U* that speaks ENPC available, so the on-screen 'IMPACT (9-pin)' card label remains unverified on hardware.",
+      "supersedable": true
+    },
+    {
+      "id": "D34",
+      "date": "2026-07-29",
+      "by": "claude+user",
+      "decision": "Added dot-matrix / IMPACT (9-pin) printer support to match the RN foodhub-printer-package: (a) impact SEARCH detection, (b) width analysis via Model->width profile, (c) TEXT-ONLY print handling (impact printers can't raster — no image/QR/barcode). User-confirmed via AskUserQuestion: width = Model->profile lookup; impact printing = text-only (skip image/QR); scope = search + print handling.",
+      "design": "SEARCH: DiscoveredPrinter gained a computed `val isImpact` (uppercase(model?:name) contains any of IMPACT_MODEL_TOKENS = [TM-U, SP700, SP742, SRP-270, SRP-275]) — mirrors RN IPScanner.buildEpsonPrinter's Epson model.startsWith(\"TM-U\") rule, generalized. No builder/transport change. PRINT: (1) PaperWidth.IMPACT_76(63f,200,33,2) — 3in Epson TM-U220 class, 33 chars Font A, widthPx nominal (images unused). (2) model/PrinterProfile(paper,isImpact){supportsGraphics=!isImpact} + PrinterProfiles.forModel(model,fallback=MM_80): impact->IMPACT_76+isImpact, else fallback thermal. (3) PrintDocument.textOnly() extension: drops Image/ImageUrl, converts Barcode/QrCode -> Text(data,align), keeps text/columns/divider/feed; returns same instance when no graphics. EXAMPLE: printTo() now takes the PrintDocument; discovered-printer test routes impact printers to PrintType.TEXT + sampleReceipt(profile.paper).textOnly(); card shows 'IMPACT (9-pin) · text-only · N chars'.",
+      "evidence": "RN rule read at foodhub-printer-package/android/.../manager/IPScanner.kt (buildEpsonPrinter: brand EPSON && model.uppercase.startsWith('TM-U') -> setImpactPrinter(true)) and model/PrinterType.java (@SerializedName('is_impact_printer'), routes text-only). Files: universal-printer-search/.../model/DiscoveredPrinter.kt:41-49; universal-printer/.../model/PaperWidth.kt:19-21; universal-printer/.../model/PrinterProfile.kt (new); universal-printer/.../model/PrintDocument.kt:82-103; example/.../MainActivity.kt.",
+      "verified": "BUILD SUCCESSFUL (:universal-printer testDebugUnitTest + :example assembleDebug). testDebugUnitTest tests=102 skipped=0 failures=0 errors=0 — +7 new: PrinterProfileTest(4) + PrintDocumentTextOnlyTest(3), both ran (not skipped).",
+      "assumed": "On-device install/launch NOT done this session — device 192.168.80.39:5555 unreachable (connect timed out). No impact hardware (TM-U*) available, so on-paper impact behavior is ASSUMED. widthPx=200 for IMPACT_76 is nominal (impact prints text, not raster) — not a verified dot count.",
+      "supersedable": true
+    },
+    {
+      "id": "D33",
+      "date": "2026-07-28",
+      "by": "claude+user",
+      "decision": "Fixed 'stuck'/truncated whole-receipt IMAGE prints over the network by bypassing DantSu with our OWN paced GS v 0 band sender. Root cause: DantSu's DeviceConnection.send() has no drain (the RN fork ADDED one) — it sends the raster in one un-paced blob, and our D32 end-drain was too coarse for a big image; the RN package paces every send.",
+      "design": "New escpos/EscPosRaster (pure control bytes INIT/align/feed/cut + bands(bitmap, bandHeight=128) -> list of GS v 0 commands, 1-bit MSB-first, dark = lum<384). EscPosNetworkPrinter.doPrint routes a SINGLE-Image document (PrintType.IMAGE always produces one) to new printImagePaced(): opens its own Socket (retry via retryPolicy, sendBufferSize=16KB), scales/dithers/inverts via Bitmaps, writes ESC @ + ESC a align, then each GS v 0 band with out.write+flush+delay((band.size/64).coerceIn(5,400)) — PER-BAND PACING so the printer keeps up, then ESC d feed + GS V cut. Text/columns/mixed docs still use the DantSu path (unchanged). D32 end-drain stays for the DantSu path.",
+      "verified": "BUILD SUCCESSFUL (:universal-printer + :example); testDebugUnitTest tests=95 failures=0 (+3 EscPosRasterTest: align/feed/init/cut control bytes; band packing needs Android so not unit-tested). Installed+launched on ZC-3588A (192.168.80.39:5555). Smooth on-paper image print ASSUMED until user re-tests Net IMAGE.",
+      "note": "This is the first piece of our OWN ESC/POS byte encoder (GS v 0) — reusable for the iOS/KMP port (D31) where DantSu isn't available. Follow-ups if still not smooth: bound bitmap height/lower dpi, tune bandHeight, or full own-encoder for text too.",
+      "supersedable": true
+    },
+    {
+      "id": "D32",
+      "date": "2026-07-27",
+      "by": "claude+user",
+      "decision": "Fixed truncated/'stuck' NETWORK prints by adding a post-write DRAIN before closing the socket (the RN foodhub-printer-package's 'smooth network print' technique from its forked DeviceConnection.send: sleep proportional to payload, ~1ms/64 bytes, before close). Our EscPosNetworkPrinter previously closed the socket immediately after DantSu printFormattedText -> large receipts/IMAGE could truncate.",
+      "change": "EscPosNetworkPrinter.writeWithTimeout success path: after write, watchdog.cancel() then delay(drainMs(text)) BEFORE disconnectPrinter(). drainMs = (text.length/64).coerceIn(minWriteDrainMs=60, maxWriteDrainMs=2500) (new ctor params). Drain runs AFTER the write-watchdog is cancelled (so the 3s watchdog can't abort the drain); still bounded by the 30s job timeout. Only on successful write (timeout/error paths unchanged).",
+      "analysis_source": "Read RN package escpos/escposprinter/connection/DeviceConnection.java + tcp/TcpConnection.java. Their smooth-print stack also has: setSendBufferSize(8192) + setSoTimeout (NOT portable through DantSu, which hides the socket — skipped); bidirectional DLE EOT status on same socket; clearEpsonPrintBuffer (DLE ENQ 1) on fault; executePrinterCommandCallBack print-exec confirmation; and a documented Epson gotcha: 'DLE EOT 2 bit 3 is ALWAYS 1 — do not read as cover open' (our EscPosStatus reads bit2/0x04 for cover, so we're safe).",
+      "verified": "BUILD SUCCESSFUL (:universal-printer + :example); testDebugUnitTest tests=92 failures=0; installed + launched on ZC-3588A (192.168.80.39:5555). On-paper effect (no truncation on large/IMAGE network prints) ASSUMED until user re-tests the previously-stuck print.",
+      "not_done": "Socket tuning (send buffer / SO timeout) — not reachable through DantSu. Buffer-clear (DLE ENQ) on fault + post-print status confirmation — recommended follow-ups, not done.",
+      "supersedable": true
+    },
+    {
+      "id": "D31",
+      "date": "2026-07-25",
+      "by": "claude+user",
+      "decision": "iOS port RESEARCH stored (decision NOT made). Full details in .memory/ios-port-research.md.",
+      "summary": "iOS backend set differs by platform: Network ESC/POS + Star (StarXpand iOS SDK EXISTS) + Bluetooth/MFi (+ optional Epson ePOS iOS). USB and Sunmi/iMin built-ins are ANDROID-ONLY (iOS has no general USB host; Sunmi/iMin POS are Android devices — Sunmi has only a Cloud iOS SDK). Recommended architecture = Kotlin Multiplatform (shared commonMain pure core + iosMain actuals + Swift veneer) to reuse the 92 tests; alternative = native Swift rewrite (drift risk). BIGGEST new work = a pure ESC/POS byte encoder (our Android path depends on DantSu which is Android-only) — put in commonMain, lets Android drop DantSu too. iOS actuals: Bitmap->UIImage, ZXing->CoreImage, WebView->WKWebView, Glide->Kingfisher, TcpConnection->NWConnection. PENDING: KMP-vs-Swift gate + whether to include Bluetooth/MFi from start.",
+      "supersedable": true
+    },
+    {
+      "id": "D30",
+      "date": "2026-07-25",
+      "by": "claude+user",
+      "decision": "Offline image caching (Glide) for URL-referenced receipt images (logo + hosted QR/barcode images), shared by HTML preview, html->bitmap IMAGE print, and native TEXT print. Confirmed: QR=both kinds (local ZXing + hosted-image-URL); Glide lives IN the SDK; missing URL -> skip that image, print the rest.",
+      "design": "New PrintElement.ImageUrl(url, align, invert, dither) + DSL imageUrl() (also for hosted QR/barcode images). New image/ImageCache (Glide 4.16.0, runtime-only no annotationProcessor): suspend load(context,url):Bitmap? = withContext(IO){ Glide.with(app).asBitmap().load(url).diskCacheStrategy(ALL).submit().get() } getOrNull — Glide DISK CACHE is the offline store; + preload(urls) to warm it online. image/ImageResolver.resolve(document, loader): replaces each ImageUrl->Image(bitmap) via loader, DROPS on null (skip-on-fail), same-instance fast-path when no ImageUrl; loader injected => resolve/drop policy unit-testable without Glide. KEY: resolve up front => all downstream (ESC/POS text, HTML data-URI, WebView) work on plain bitmaps + offline. ReceiptPrinting: renderReceiptHtml + UniversalPrinter.receiptHtml now SUSPEND (resolve then render); printReceipt resolves first; new preloadReceiptImages. Added defensive `is ImageUrl -> {}` skip branch to all exhaustive when() renderers (EscPos/Sunmi/Star/iMin/HTML) since ImageUrl is normally resolved away.",
+      "verified": "BUILD SUCCESSFUL (:universal-printer + :example; Glide resolves+compiles); testDebugUnitTest tests=92 failures=0 (+4 ImageResolverTest: failed-url dropped + rest kept, no-ImageUrl fast-path same-instance, urls() lists targets, DSL fields). Example: sampleReceipt gets an imageUrl logo; Preview button now scope.launch (receiptHtml suspend). Clean-room (Glide pattern like RN package, no code copied).",
+      "assumed_gaps": "Glide actual download + DISK-CACHE OFFLINE REPLAY (fetch online -> airplane-mode reprint), resolved images appearing in WebView bitmap + on paper, Glide init via manifest merge on device — ALL ASSUMED (device offline). Bitmap-returning resolve path not JVM-testable (null/drop path is).",
+      "supersedable": true
+    },
+    {
+      "id": "D29",
+      "date": "2026-07-24",
+      "by": "claude+user",
+      "decision": "Centralized receipt generator -> BOTH HTML and ESC/POS, with a common print entry that picks print type (TEXT native | IMAGE from HTML). HTML is also the app-facing preview/template view. Reuses PrintDocument as the single source of truth (no new model).",
+      "design": "New package com.universalprinter.html: (1) ReceiptHtmlRenderer.render(document, imageEncoder, codeEncoder): String — PURE, unit-testable (Android bits injected like EscPosRenderer's imageToHex); maps text(align/bold/underline/invert/size via <b>/<u>/scale transform/inv span), columns(<div display:flex> per-cell flex:weight+text-align, browser word-wrap), image(<img data-uri>, CSS filter:invert), barcode/qr(<img data-uri>), divider(dashed), feed(spacer); body width = paper.widthPx. (2) ReceiptCodes (PURE ZXing) matrix() -> BitMatrix for CODE128/39/EAN13/UPCA + QR L/M/Q/H. (3) ReceiptImages (Android) imageEncoder(Bitmap->PNG base64) + codeEncoder(ReceiptCodes->Bitmap->base64) => REAL scannable codes in the image. (4) HtmlReceiptRasterizer(context) (Android WebView) suspend toBitmap(html,widthPx) via Html2Bitmap technique (enableSlowWholeDocumentDraw, setInitialScale(100), measure at contentHeight, screenshot RGB_565), main-looper + suspendCancellableCoroutine + withTimeout. (5) model/PrintType{TEXT,IMAGE}. (6) ReceiptPrinting.kt: suspend Printer.printReceipt(context, document, type=TEXT) + PUBLIC renderReceiptHtml(context,document):String; routing extracted to internal routePrint(type,doc,print,toImageDoc) so it's unit-testable without WebView. (7) UniversalPrinter.receiptHtml(context,document) facade. Context is a param (network backend has no Context; WebView/ZXing need one) => WebView/ZXing stay OUT of transport backends. IMAGE reuses PrintDocument.image()+existing per-backend image path. New dep com.google.zxing:core 3.5.3 (pure Java).",
+      "verified": "BUILD SUCCESSFUL (:universal-printer + :example); testDebugUnitTest tests=88 failures=0 (+13: ReceiptHtmlRendererTest 7 = center/escape, bold/underline/invert/size, flex columns w/ weight+align, divider+feed, barcode/qr via injected encoder, paper-width CSS, raw omitted; ReceiptCodesTest 4 = QR square, CODE128, EAN13 auto-checksum, format mappings; ReceiptPrintingTest 2 = routePrint TEXT->original doc / IMAGE->rasterized doc). Clean-room (Html2Bitmap TECHNIQUE reimplemented, no code copied).",
+      "hardening_2026-07-24": "HtmlReceiptRasterizer hardened against its 3 named failure modes (robust-by-construction, still 0% device runs): (1) blank-bitmap on HW-accel WebView -> forced View.LAYER_TYPE_SOFTWARE (standard fix); (2) screenshot-before-data-URI-images-decode -> replaced fixed 120ms delay with a contentHeight STABILITY POLL (ready only when height>0 and unchanged for stableReads=3 polls past minSettleMs, so image-decode reflow has completed) — fixes missing logo/QR; (3) density-dependent width -> HTML carries <meta viewport width=widthPx> + useWideViewPort=true so layout is density-independent (body width:100%). Also blockNetworkLoads=true. testDebugUnitTest tests=88 failures=0 (ReceiptHtmlRendererTest updated: paperWidth now asserts viewport content=width=384/576).",
+      "assumed_gaps": "Residual (needs 1 device run): WebView offscreen render with appContext on all OEMs, the height-stability heuristic edge cases, tall-receipt software-bitmap memory, on-paper result + code scannability at paper DPI. NOT done: :example 'Print->HTML image' button + WebView preview UI (SDK feature complete; demo UI optional).",
+      "supersedable": true
+    },
+    {
+      "id": "D28",
+      "date": "2026-07-24",
+      "by": "claude+user",
+      "decision": "Phase 3 i18n: native ESC/POS code-page text (the RN foodhub-printer-package's PC737/GBK approach). Implemented for the ESC/POS backends via DantSu's EscPosCharsetEncoding.",
+      "design": "New model/PrinterCharset(javaCharsetName, codePageId) + PrintDocument.charset: PrinterCharset? = null (+DSL var; preserved through ReceiptRasterization). Shared escpos/buildEscPosPrinter(connection, document, dpi) (DRY) builds EscPosPrinter with the 5-arg EscPosCharsetEncoding(name, ESC-t-n) ctor when charset!=null (javap-verified DantSu ctor + EscPosCharsetEncoding(String,int).getCommand()=ESC t n). Wired into EscPosNetworkPrinter + EscPosUsbPrinter. Charset affects NATIVE text only; rasterized text (RenderMode) uses Android fonts regardless.",
+      "verified_ids": "ESC t n ids taken from the Rongta RP80 command manual (pdftotext, lines 8993-9659) AND cross-checked against Epson TM standard — PORTABLE set (identical both): 0 PC437, 2 PC850, 3 PC860, 4 PC863, 5 PC865, 16 WPC1252, 18 PC852, 19 PC858 => hardcoded as constants. Cyrillic/Greek page numbers DIVERGE by model (Rongta page17=WPC1253 Greek vs Epson page17=PC866 Cyrillic) => NOT hardcoded; exposed via PrinterCharset.custom(name,id) (OCP escape hatch) with documented Rongta examples. GBK/CJK is MULTI-BYTE, not selectable via ESC t + DantSu single-byte encoding => explicitly NOT native; CJK must use RenderMode.AUTO/IMAGE rasterization (SAME fallback the RN package uses for CJK on Seiko/Epson).",
+      "verified": "BUILD SUCCESSFUL (:universal-printer + :example); testDebugUnitTest tests=75 failures=0 (+3 PrinterCharsetTest: portable ids match verified table, custom() name/id, doc carries charset via DSL). Clean-room (methodology read, DantSu API used, no code copied). ASSUMED: on-hardware glyph output per code page + device charset availability (ICU on API 26+).",
+      "supersedable": true
+    },
+    {
+      "id": "D27",
+      "date": "2026-07-22",
+      "by": "claude+user",
+      "decision": "Sunmi Cloud Printer (NT211/NT212 58mm, NT310/NT311 80mm) supported via the EXISTING network ESC/POS backend (user chose the minimal LAN path over a dedicated Sunmi external SDK adapter or cloud/remote).",
+      "research": "Verified (Sunmi docs + integrator guides): the Sunmi Cloud Printer is a STANDALONE network printer (WiFi/Eth/USB/BT) that speaks standard ESC/POS over raw TCP PORT 9100 — distinct from the built-in AIDL InnerPrinter (UniversalPrinter.sunmi). So UniversalPrinter.network(ip,9100) already prints to it, the search module already discovers it (Sunmi mDNS CloudPrint_/_afpovertcp._tcp), and preflight/status/i18n/dithering all apply automatically. Dedicated Sunmi external-printerlibrary2 (SunmiCloudPrinter enum) and device-to-cloud remote printing were NOT chosen.",
+      "change": "Added convenience factory UniversalPrinter.sunmiCloud(host, port=9100, retryPolicy, preflightEnabled) = alias delegating to network() (no new type/backend — DRY). Documents the verified port + that it differs from the built-in sunmi().",
+      "verified": "BUILD SUCCESSFUL (:universal-printer + :example); testDebugUnitTest tests=72 failures=0 (alias needs no new test). On-hardware print to a real Sunmi Cloud Printer STILL ASSUMED (port 9100 + ESC/POS confirmed from docs, not run).",
+      "supersedable": true
+    },
+    {
+      "id": "D26",
+      "date": "2026-07-22",
+      "by": "claude+user",
+      "decision": "Researched brand-specific ESC/POS status per printer. Conclusion: NO brand-specific status code needed — the single EscPosStatus parser is correct for all ESC/POS targets; adding per-brand strategies would be YAGNI/KISS violation.",
+      "findings": "Rongta RP80 command manual (pdftotext of official PDF) VERIFIED it implements standard DLE EOT n=1..4 with the SAME layout — n=3 bit3 'Autocutter error occurred' independently confirms our autoCutterError=0x08 (was canonical-uncited, now cross-checked). Seiko RP-D10/RP-E10: SII product+tech docs state 'industry-standard ESC/POS' (supports DLE EOT); tech-ref PDF fetch timed out so bit table not opened directly (assumed-standard). Epson: DLE EOT is Epson's own spec. Sunmi = updatePrinterState() SDK codes (not ESC/POS). Star = StarXpand getStatusAsync() SDK (javap-verified; not ESC/POS). So Epson/Seiko/Rongta are identical standard DLE EOT => one parser.",
+      "solid": "Current design already honors SOLID: SRP (EscPosStatus parses bytes / Preflight maps status->decision / backends transport / StatusQueryable capability), OCP (new brand = new mapper or backend, no edits to existing), ISP (StatusQueryable small optional capability), DIP (backends depend on PreflightResult/PrinterStatus + pure mappers). Extension point exists if a divergent ESC/POS printer ever appears (add a StatusProtocol strategy then, not now). Updated EscPosStatus KDoc to cite the Rongta cross-check + note it covers Epson/Seiko/Rongta.",
+      "verified": "Comment-only code change; suite unchanged at 72 tests, 0 failures. autoCutter bit now cross-cited. Seiko exact bit table still ASSUMED (fetch timed out) but ESC/POS-standard per SII docs.",
+      "supersedable": true
+    },
+    {
+      "id": "D25",
+      "date": "2026-07-22",
+      "by": "claude+user",
+      "decision": "Callback + exception-style print APIs layered over the suspend print()->PrintResult core. Warnings (messages) delivered on a SEPARATE callback from success/error.",
+      "design": "New PrintCallback { onWarning(PrinterWarning) {}; onSuccess() {}; onError(PrintResult.Error) {} } (all no-op defaults). Extension fun Printer.print(document, scope, callback): Job launches in the caller's scope and dispatches warnings-first-then-success, or onError (callbacks run on the caller's scope/dispatcher). Exception style: class PrintException(reason, message, cause) + suspend fun Printer.printOrThrow(document): List<PrinterWarning> (returns warnings on success, throws PrintException on error). Both are additive extensions — the sealed PrintResult core is unchanged.",
+      "verified": "BUILD SUCCESSFUL (:universal-printer + :example); testDebugUnitTest tests=72 failures=0 (+4 PrintCallbackTest: warnings-then-success, error-not-success, printOrThrow returns warnings, printOrThrow throws typed PrintException).",
+      "supersedable": true
+    },
+    {
+      "id": "D24",
+      "date": "2026-07-22",
+      "by": "claude+user",
+      "decision": "Unified pre-flight status check across Epson/Seiko/Rongta (ESC/POS network), Sunmi, and Star. BLOCK (fail-fast typed error, no print) on cover-open / auto-cutter-error / out-of-paper / not-connected; paper-near-end does NOT block — prints and surfaces a warning.",
+      "model": "PrintResult.Success changed data object -> data class Success(warnings: List<PrinterWarning>=emptyList()) (migrated 5 prod + 6 test sites to Success()). New PrinterWarning{PAPER_NEAR_END}. PrintErrorReason += CUTTER_ERROR. PrinterStatus += autoCutterError. New PreflightResult{Proceed(warnings)|Block(reason,message)}.",
+      "plumbing": "QueuedPrinter gains preflightEnabled (default true) + protected open suspend preflight(doc):PreflightResult=Proceed(). Queue worker: preflight -> Block=>Error(no doPrint, queue advances); Proceed(w)=>doPrint then merge w into Success.warnings (withWarnings helper, one place). Exposed on facade network()/sunmi()/star().",
+      "pure_mappers_VERIFIED_sources": "preflight/Preflight (pure, unit-tested): escPos(PrinterStatus?) null=>Proceed; sunmi(Int) codes 4/6/7/3,505 (Sunmi dev-doc verified); star(cover,paperEmpty,paperNearEmpty,cutterError,hasError). Star fields javap-verified: StarPrinterStatus.getCoverOpen/getPaperEmpty/getPaperNearEmpty/getHasError + StarPrinterStatusDetail.getCutterError; StarPrinter.getStatusAsync():Deferred<StarPrinterStatus>. ESC/POS DLE EOT extended with n=3 QUERY_ERROR + autoCutterError=bit3(0x08); queryStatus now reads 4 bytes; parse is 4-arg.",
+      "per_backend": "EscPosNetworkPrinter.preflight()=Preflight.escPos(queryStatus()) (separate short-lived socket before print socket). Sunmi.preflight()=Preflight.sunmi(updatePrinterState()) (replaced the old inline ==4 check). Star: status needs an OPEN port, so it checks INLINE in doPrint after openAsync() (reuses the connection), Block=>Error / near-end=>Success([PAPER_NEAR_END]); base preflight stays Proceed. USB ESC/POS + iMin: no preflight (default Proceed).",
+      "verified": "BUILD SUCCESSFUL (:universal-printer + :example); testDebugUnitTest tests=68 failures=0 (+9: PreflightTest 5 = all three mappers every branch; EscPosStatusTest +autoCutter/4-arg parse; QueuedPrinterPreflightTest 3 = Block->Error+skip-print, near-end->Success+warning, disabled->skips). Pure logic fully JVM-tested.",
+      "assumed_gaps": "Actual status reads on real Epson/Seiko/Rongta (DLE EOT support per-model; graceful Proceed on no-answer), Sunmi V3_MIX codes, Star TSP100IV getStatusAsync — all ASSUMED (no hardware). Sunmi near-end not available via updatePrinterState (broadcast-only) so Sunmi never warns near-end. USB ESC/POS preflight (bulk-IN read) + iMin preflight + overheat handling deferred.",
+      "supersedable": true
+    },
+    {
+      "id": "D23",
+      "date": "2026-07-22",
+      "by": "claude+user",
+      "decision": "Live printer status query via ESC/POS DLE EOT for the network backend (turns 'bytes sent' into 'printable').",
+      "design": "New public model/PrinterStatus(online,coverOpen,error,paper:PaperState{OK,NEAR_END,NOT_PRESENT}) + .ready. New capability interface StatusQueryable.queryStatus(): PrinterStatus? (null = unreachable/unsupported). PURE+TESTED escpos/EscPosStatus: DLE EOT n command bytes (n=1 printer, n=2 offline, n=4 paper) + bit parser. Masks: online = n=1 bit3(0x08) clear; paper no-paper=0x72, near-end=0x1E (cross-checked vs python-escpos RT_MASK_ONLINE=8/NOPAPER=114/LOWPAPER=30/PAPER=18); coverOpen=n=2 bit2(0x04), error=n=2 bit6(0x40) = canonical Epson offline-cause bits. EscPosNetworkPrinter implements StatusQueryable: opens a short-lived java.net.Socket (bypassing DantSu which is write-only), soTimeout=statusReadTimeoutMs(1500), interleaves write DLE EOT / read 1 byte x3, parses; runCatching->null on timeout/EOF/unreachable (so unsupported printers degrade gracefully, don't throw).",
+      "scope": "Network ESC/POS only. NOT auto-preflighted in doPrint (opt-in via queryStatus() to avoid latency + the port-9100 single-connection clash while a job streams). USB DLE EOT deferred (needs bulk-IN endpoint read). Sunmi already has its own updatePrinterState preflight; Star/iMin have their own status APIs (not wired).",
+      "verified": "BUILD SUCCESSFUL (:universal-printer + :example); testDebugUnitTest tests=59 failures=0 (+5 EscPosStatusTest: online bit3, cover/error bits, paper masks, no-paper-precedence, parse+ready). Pure parser fully JVM-tested; the socket transport + real printer replies are ASSUMED until a device (and DLE EOT support is per-model).",
+      "supersedable": true
+    },
+    {
+      "id": "D22",
+      "date": "2026-07-21",
+      "by": "claude+user",
+      "decision": "Image dithering (Floyd-Steinberg error diffusion to 1-bit) for photos/logos, opt-in per image.",
+      "design": "PURE+TESTED util/Dithering.floydSteinberg(argb: IntArray, w, h): IntArray (luminance 0.299/0.587/0.114, threshold 128, standard FS error weights 7/3/5/1 over 16; returns only 0xFF000000/0xFFFFFFFF). Android thin wrapper util/Bitmaps.dither(bitmap). New PrintElement.Image.dither: Boolean = false (opt-in; default = zero behavior change) + DSL image(...,dither). Applied in EVERY image path AFTER scaleToWidth and BEFORE invert: EscPosRenderer.renderImage + Sunmi/Star/iMin executors; op types SunmiOp/StarOp/IminOp.Image gained a dither flag threaded from the element. Must dither post-scale (dithering pre-scale then scaling reintroduces gray) => lives in backends, not the QueuedPrinter pre-pass. Text-rasterized images (ReceiptRasterization) keep dither=false (already 1-bit).",
+      "verified": "BUILD SUCCESSFUL (:universal-printer + :example); testDebugUnitTest tests=54 failures=0 (+5 DitheringTest: output strictly black/white, all-white/all-black stable, mid-gray ~half black 30-70%, size preserved, dimension mismatch throws). Pure algorithm fully JVM-tested; the Bitmaps.dither Android wrapper + on-paper quality are ASSUMED until a device.",
+      "supersedable": true
+    },
+    {
+      "id": "D21",
+      "date": "2026-07-20",
+      "by": "claude+user",
+      "decision": "i18n / non-Latin support via GRAPHICS-MODE text rendering (Phase 1), not printer codepages. Rationale (web-researched): thermal printers only render glyphs in their font ROM; Arabic RTL/shaping is unsupported in text mode; the reliable cross-hardware method is to draw text to a bitmap on the device and print it via the (universal) raster image path.",
+      "design": "New model/RenderMode {AUTO(default),TEXT,IMAGE}. AUTO: Latin/Western stays native (fast); any non-Latin run (CJK/Arabic/Hebrew/Thai/Cyrillic/Greek) is rasterized. IMAGE: all text->bitmap (WYSIWYG). TEXT: force native (Western-only). Barcodes/QR ALWAYS native (scannability). PURE+TESTED: util/Scripts.requiresGraphics (codepoint>0x24F outside a benign CP1252 set) + text/RenderPlan.plan(document): List<Planned{Native|Raster(RasterSpec)}>. ANDROID (device-verified, not JVM-testable): text/TextRasterizer (StaticLayout/TextPaint/Canvas -> Bitmap at paper.widthPx; StaticLayout gives full Unicode shaping+bidi/RTL; context-free) + ReceiptRasterization.apply(document) which swaps rasterized elements for full-width PrintElement.Image(align=LEFT, invert). Wired ONCE in QueuedPrinter: doPrint(ReceiptRasterization.apply(it)) -> every backend gets i18n via its EXISTING image path, zero per-backend code. Fast path: apply() returns the SAME document when nothing needs rastering (Latin AUTO => zero behavior change).",
+      "verified": "BUILD SUCCESSFUL (:universal-printer + :example); testDebugUnitTest tests=48 failures=0 (+9: ScriptsTest 3 covering Latin/accents/euro=native vs CJK/Arabic/Hebrew/Thai/Cyrillic=graphics; RenderPlanTest 6 covering AUTO/TEXT/IMAGE + columns + barcode/qr-always-native).",
+      "assumed_gaps": "TextRasterizer Canvas output is compile-verified only — actual glyph/RTL/CJK rendering + on-paper result is ASSUMED (Canvas/Bitmap need Robolectric or a device). Phase 3 (native ESC t / Sunmi setPrinterEncoding codepage fast path) NOT done.",
+      "phase2_done": "2026-07-20: pixel-measured columns implemented. RenderPlan now emits Planned.RasterColumns(cells, paper) for rasterized columns (was monospace RasterSpec lines). TextRasterizer.rasterizeColumns gives each cell a pixel-width slice via the existing (unit-tested) ColumnLayout.columnWidths(cells, widthPx), clamps to paper.maxColumns, and lets StaticLayout wrap+align each cell at its pixel width — so CJK double-width / shaped Arabic columns align by real glyph metrics, not char count. Pure width math covered by existing ColumnLayoutTest; new RenderPlanTest asserts non-Latin columns->RasterColumns (cells passed through) and Latin columns stay Native. testDebugUnitTest tests=49 failures=0. Robolectric DEFERRED (deliberate): under Robolectric Paint glyph metrics are stubbed, so it cannot validate the very thing Phase 2 fixes (real glyph widths), and its network-fetched runtime risks the green suite => device/emulator is the only real verification. Canvas composition still ASSUMED until device.",
+      "supersedable": true
+    },
+    {
+      "id": "D20",
+      "date": "2026-07-18",
+      "by": "claude+user",
+      "decision": "Added Android 11+ package-visibility <queries> to the :universal-printer manifest so the Sunmi/iMin built-in backends can bindService() their vendor AIDL service on API 30+.",
+      "verified_bind_targets": "Disassembled the resolved vendor AARs. Sunmi (printerlibrary 1.0.24 InnerPrinterManager): Intent.setPackage('woyou.aidlservice.jiuiv5').setAction('woyou.aidlservice.jiuiv5.IWoyouService').bindService. iMin (IminPrinterLibrary V2.0.0.18 PrinterHelper->NeoPrinterManager): Intent.setAction('com.imin.printerservice.NeoPrinterService').setComponent(ComponentName('com.imin.printerservice','com.imin.printerservice.core.ApiAdapterManager.NeoPrinterService')).bindService. Both vendor AAR manifests are EMPTY (package= only, NO <queries>/<service>), so the app must declare visibility itself.",
+      "change": "manifest <queries> with <package android:name='woyou.aidlservice.jiuiv5'/> + <package android:name='com.imin.printerservice'/>. Declared in the LIBRARY manifest so it merges into every consumer automatically. Package form covers both setPackage (Sunmi) and setComponent (iMin). Ignored on API<30. iMin v1 devices MAY expose a different service package — unverified (we bundle v2).",
+      "verified": "BUILD SUCCESSFUL (:universal-printer + :example assembleDebug); confirmed both <package> entries present in the merged example packaged_manifests/debug/AndroidManifest.xml. Runtime bind on real Sunmi/iMin hardware STILL ASSUMED (devices offline).",
+      "supersedable": true
+    },
+    {
+      "id": "D19",
+      "date": "2026-07-18",
+      "by": "claude+user",
+      "decision": "Extracted pure, unit-testable renderers for Star/Sunmi/iMin (mirroring the existing escpos/EscPosRenderer). Each backend is now a thin executor over a normalized op list.",
+      "design": "New SunmiRenderer/SunmiOp, StarRenderer/StarOp, IminRenderer/IminOp (each an internal sealed op interface + pure `render(document): List<XxxOp>`). Renderers import ONLY model+util (no vendor SDK), so element->command mapping is JVM-testable. All backend-specific NUMERIC resolution is done in the renderer (Sunmi/iMin align+symbology ints, qr moduleSize=sizeDots/24, Sunmi doubleW/doubleH from TextSize; Star magnification WxH, qr cellSize=sizeDots/25 clamp 1..8, barcode heightMm=heightDots/8.0). Columns/Divider flattened to left-aligned text ops. Trivial 1:1 vendor-ENUM passes (Star Align->Alignment, symbology, QRCodeLevel) stay in the backend executor (not worth testing). FAITHFUL refactor: behavior preserved exactly (incl. Sunmi barcode/qr NOT setting alignment — a latent gap left as-is; iMin drops bold/underline/size as before; Star drops Raw).",
+      "verified": "BUILD SUCCESSFUL (:universal-printer + :example); testDebugUnitTest tests=39 failures=0 (+16 new: SunmiRendererTest 6, StarRendererTest 5, IminRendererTest 5). Tests assert resolved values incl. the Sunmi(EAN13=2) vs iMin(EAN13=3) symbology divergence, magnification per size, qr math, cut/drawer ordering, columns-flatten. Images not unit-tested (Bitmap can't be constructed in JVM test) — Image op is a passthrough. STILL NOT PRINTED on hardware.",
+      "supersedable": true
+    },
+    {
+      "id": "D18",
+      "date": "2026-07-18",
+      "by": "claude+user",
+      "decision": "Two internal SDK robustness improvements to :universal-printer: (1) typed error taxonomy, (2) universal per-job timeout.",
+      "typed_errors": "PrintResult.Error gained a 3rd field reason: PrintErrorReason (TIMEOUT, NOT_CONNECTED, PAPER_OUT, COVER_OPEN, PERMISSION_DENIED, CONTENT_INVALID, UNSUPPORTED, IO, UNKNOWN), defaulted last so existing positional Error(msg)/Error(msg,cause) call sites stay source-compatible. Backends now emit reasons: Sunmi surfaces its ALREADY-computed signals (updatePrinterState()==4 -> PAPER_OUT; service unavailable -> NOT_CONNECTED); network + USB via shared escpos/EscPosErrors.escPosReason (EscPosConnectionException/IOException -> NOT_CONNECTED; EscPosParser/Encoding/Barcode -> CONTENT_INVALID); network write-watchdog -> TIMEOUT; USB permission -> PERMISSION_DENIED. Star/iMin left UNKNOWN default for now.",
+      "job_timeout": "PrintQueue gained jobTimeoutMs: Long? (null=disabled). Each job runs as an async child; withTimeoutOrNull(jobTimeoutMs){work.await()} else cancel+return Error(reason=TIMEOUT) so the queue ADVANCES past a wedged backend. worker wrapped in runCatching inside async so it can't cancel the worker loop. QueuedPrinter passes DEFAULT_JOB_TIMEOUT_MS=30000L (all backends inherit). CAVEAT: a blocking (non-suspending) vendor call is only truly abandoned when a spare dispatcher thread exists — true on default Dispatchers.IO, not on a single-thread dispatcher (documented on PrintQueue).",
+      "verified": "BUILD SUCCESSFUL (:universal-printer + :example); testDebugUnitTest tests=23 failures=0 (PrintQueue now 5: added anOverrunningJobTimesOutAndTheQueueKeepsGoing — virtual-time asserts slow job -> Error reason TIMEOUT AND next job -> Success). Backward-compat: existing PrintQueue(scope){worker} + PrintResult.Error positional call sites unchanged. STILL NOT PRINTED on hardware.",
+      "supersedable": true
+    },
+    {
+      "id": "D17",
+      "date": "2026-07-18",
+      "by": "claude+user",
+      "decision": "EscPosNetworkPrinter timeouts: connectTimeoutMs default 4000 (was 5000), new writeTimeoutMs default 3000.",
+      "connect_timeout_VERIFIED": "javap -c of DantSu TcpConnection.connect() shows Socket.connect(InetSocketAddress, int) using the ctor's timeout int => that param IS the connect timeout. Set to 4000.",
+      "write_timeout_rationale": "DantSu print path is WRITE-ONLY (DeviceConnection.send -> outputStream.write+flush, no read; verified from bytecode — no setSoTimeout call, socket field private w/ no getter). Java SO_TIMEOUT bounds blocking READS only, so it cannot cap a print write. Implemented a 3s cap via a watchdog coroutine (launch{ delay(writeTimeoutMs); connection.disconnect() }) that force-closes the socket at the deadline — the only thing that unblocks a wedged TCP write; the resulting write exception is mapped to PrintResult.Error('...timed out after 3000ms'). timedOut tracked via AtomicBoolean (cross-thread visibility). Requires a multi-threaded dispatcher (default Dispatchers.IO) so the watchdog runs while the write blocks; documented on the class.",
+      "verified": "BUILD SUCCESSFUL (:universal-printer + :example); testDebugUnitTest tests=22 failures=0 (no regression). Write-timeout watchdog is compile+logic-verified, ASSUMED at runtime (needs a real wedged-socket to exercise; V3_MIX/LAN Epson offline).",
+      "supersedable": true
+    },
+    {
+      "id": "D16",
+      "date": "2026-07-18",
+      "by": "claude+user",
+      "decision": "Retry mechanism for connectivity failures on the network (TCP/9100 ESC/POS) printer. New model/RetryPolicy (maxAttempts default 3, initialDelayMs 300, maxDelayMs 3000, backoffFactor 2.0; NONE=1 attempt) + pure suspend util/retrying(policy, retryable, onRetry, block) with capped exponential backoff. Wired into EscPosNetworkPrinter.doConnect + doPrint; UniversalPrinter.network(host,port,retryPolicy=DEFAULT) exposes it.",
+      "safety_design": "Retry wraps ONLY the connect/handshake phase, NOT the write. VERIFIED by javap: EscPosPrinter(connection,...) CONSTRUCTOR throws EscPosConnectionException (DantSu connects at construction, before any byte on the wire) => re-opening the socket cannot double-print. printFormattedText*(text) (the write) is a single attempt because raw 9100 has no app-level ack, so a mid-stream reset may have already printed part of the receipt and replay would duplicate. Each retry attempt disconnects the prior TcpConnection + builds a fresh one.",
+      "retryable_predicate_VERIFIED": "isConnectivityError = EscPosConnectionException || java.io.IOException. javap-confirmed EscPosConnectionException extends java.lang.Exception (NOT IOException), thrown by TcpConnection.connect() and EscPosPrinter ctor/printFormattedText. Content errors (EscPosParser/Encoding/Barcode) are deterministic => NOT retried. USB printer intentionally out of scope (attach/permission issue, not transient).",
+      "verified": "BUILD SUCCESSFUL (:universal-printer + :example assembleDebug); testDebugUnitTest tests=22 failures=0 — new RetryTest 7 (no-retry-on-success, retry-then-succeed, exhaust+rethrow, no-retry-non-retryable, maxAttempts=1 disables, capped-exp-backoff via virtual time 100+200+250=550ms, cancellation-propagated-not-retried). retrying() is dispatcher-agnostic (delay) => runTest virtual-time testable. STILL NOT PRINTED on hardware.",
+      "supersedable": true
+    },
+    {
+      "id": "D15",
+      "date": "2026-07-17",
+      "by": "claude+user",
+      "decision": "Enriched :universal-printer content model (Sunmi-modeled). Added: L/R + N-column rows with DYNAMIC MAX per paper (80mm=5, 72mm=4, 58mm=3) and WORD-WRAP; inverted-background text + image; full text styling (bold/underline/size); QR error level (L/M/Q/H); barcode; cash-drawer kick; cut-type enum (NONE/PARTIAL/FULL, replaced Boolean); raw ESC/POS passthrough; Sunmi status preflight.",
+      "columns_design": "Columns rendered via a shared pure util ColumnLayout.format(cells, paper) -> monospace word-wrapped, max-column-clamped physical lines, emitted as left-aligned text on EVERY backend (NOT each vendor's printColumnsText) => identical output + deterministic/unit-tested. Fixed-pitch Font A + paper.charsPerLine assumption.",
+      "per_backend_invert_VERIFIED_api": "ESC/POS <font color='bg-black'> / Sunmi setPrinterStyle(ENABLE_ANTI_WHITE) / Star styleInvert(true) / iMin setFontAntiWhite(true). Image invert = Bitmaps.invert (flip RGB) uniformly. Star: styleBold/UnderLine/Magnification + DrawerBuilder.actionOpen + QRCodeLevel; Sunmi: setPrinterStyle bold/underline/double-w/h + printQRCode(size,level) + openDrawer + sendRAWData; iMin: setFontAntiWhite + openDrawer + sendRAWData (bold/underline/size NOT exposed -> best-effort). All confirmed by javap.",
+      "dropped": "charset/i18n was in the plan but DROPPED this round — correct ESC/POS codepage id is hardware-specific and unverifiable without a device; shipping it would be a wrong/dead field. Revisit with a target device + codepage.",
+      "verified": "BUILD SUCCESSFUL (:universal-printer + :example); testDebugUnitTest tests=15 failures=0 (ColumnLayout 5 = widths/word-wrap/hard-break/max-clamp/multi-line-row; EscPosRenderer 4 incl invert+columns; PrintQueue 4; PaperWidth 2). Example sample receipt now uses columns + inverted header + auto-wrap. STILL NOT PRINTED on hardware (V3_MIX offline).",
+      "supersedable": true
+    },
+    {
+      "id": "D14",
+      "date": "2026-07-17",
+      "by": "claude+user",
+      "decision": "Added a SECOND, separate SDK — :universal-printer — for PRINTING (distinct from the search SDK). SINGLE module bundling everything (user directive 'single sdk'): core Kotlin/coroutine API + per-printer queue + ESC/POS (TCP+USB via DantSu) + Star (StarXpand) + Sunmi (inner AIDL) + iMin (PrinterHelper v1+v2). namespace com.universalprinter, minSdk 26 (StarXpand floor), maven-publish (com.universalprinter:universal-printer:1.0.0).",
+      "architecture": "interface Printer + abstract QueuedPrinter (owns a PrintQueue: Channel + one worker coroutine per printer => same-printer FIFO, parallel across printers). Device-agnostic PrintDocument (elements: Text/Image/Barcode/QrCode/Feed/Divider) + PaperWidth enum (MM_58=384px/32ch, MM_72=576/42, MM_80=576/48 @203dpi, from parent app) + DSL printDocument{}. Backends: EscPosNetworkPrinter/EscPosUsbPrinter (DantSu wrap + EscPosRenderer PrintDocument->formatted text, injectable image->hex for testability + UsbPermissionHelper Android-14-safe), StarPrinterBackend (StarXpandCommand PrinterBuilder), SunmiPrinterBackend (InnerPrinterManager/SunmiPrinterService), IminPrinterBackend (PrinterHelper). Facade UniversalPrinter.{network,usb,star,sunmi,imin}().",
+      "deps_VERIFIED_resolve": "DantSu com.github.DantSu:ESCPOS-ThermalPrinter-Android:3.3.0 (JitPack), com.starmicronics:stario10:1.12.0, com.sunmi:printerlibrary:1.0.19, com.github.iminsoftware:IminPrinterLibrary:V2.0.0.18 (JitPack). Added jitpack repo to settings. All vendor APIs confirmed by javap of the resolved AARs; backends COMPILE against them (compiler-validated).",
+      "verified": "BUILD SUCCESSFUL (:universal-printer + :example assembleDebug); :universal-printer:testDebugUnitTest tests=8 failures=0 (PrintQueue x4 incl serialization/FIFO/failure-isolation, PaperWidth x2, EscPosRenderer x2).",
+      "assumed_ONDEVICE": "NO on-device print verified yet — the V3_MIX went offline (wireless adb dropped) before testing. Verifiable when reconnected: Sunmi built-in (V3_MIX), LAN Epson (network ESC/POS), LAN Star TSP100IV (StarXpand). iMin: no device. Sunmi/iMin barcode symbology int codes + iMin printBarCodeWithAlign arg order are ASSUMED pending hardware.",
+      "supersedable": true
+    },
+    {
+      "id": "D13",
+      "date": "2026-07-17",
+      "by": "claude+user",
+      "decision": "SOLID hardening round 2. (#1 DRY/OCP) Centralized emulation strings into model/Emulation.kt (ESC_POS/ZPL/STAR_PRNT/STAR_LINE/STAR_GRAPHIC/STAR_DOT/STAR_CD5/UNKNOWN); Epson/Sunmi/Zebra/Snmp/StarModelEmulation now reference it instead of scattered literals. (#2 DIP) Extracted HostProbe (ping) + EscPosProbe (querySerial/queryIdentity, with EscPosIdentity moved onto the interface) interfaces; NetworkScanner implements HostProbe, EscPosSerialProbe implements EscPosProbe. SnmpDiscovery + StarWebDiscoverer now depend on those interfaces + an injectable localSubnetPrefix lambda (was calling NetworkUtils directly). Dropped the unused Context param from SnmpDiscovery.discover (facade updated).",
+      "payoff": "Orchestrators are now unit-testable with fakes — added SnmpDiscoveryTest that drives discover() end-to-end via fake HostProbe + SnmpTransport-backed SnmpIdentityProbe + fake EscPosProbe + injected subnet, asserting a Zebra printer is branded at a reachable IP. This closes the DIP gap flagged in the review (previously only pure functions + probe() were testable).",
+      "verified": "BUILD SUCCESSFUL (lib + example); testDebugUnitTest tests=22 failures=0 (added SnmpDiscoveryTest). SOLID now: SRP/OCP/LSP/ISP strong; DIP good — SnmpDiscovery + StarWebDiscoverer fully fakeable. Remaining (optional): ZebraDiscovery/EpsonDiscovery still take Context + concrete UDP collaborators (harder to fake); DiscoveredPrinter is still a flat network+USB DTO.",
+      "supersedable": true
+    },
+    {
+      "id": "D12",
+      "date": "2026-07-17",
+      "by": "claude+user",
+      "decision": "Added SDK-FREE Star discovery (network/star/StarWebDiscoverer + StarModelEmulation), giving brand + IP + MAC + model + EMULATION with no StarXpand jar. Reverse-engineered StarXpand's emulation approach and reproduced it exactly. Example app switched to this SDK-free path (dropped :adapter-star dep, reverted example minSdk 26->21). :adapter-star module kept in repo as an optional alternative.",
+      "reverse_engineering": "Decompiled stario10 1.12.0 (javap) + reflectively invoked internal.printerspec.j.e(StarPrinterModel). FINDING: StarXpand does NOT read emulation from the wire — every discovery path does emulation = printerspec.j.e(model); model is 'estimated' from the discovery response product name (ModelDetectionInformation{model,isEstimated,isFallback}). Emulation enum: StarLine/StarDot/StarGraphic/StarPRNT/StarCD5/EscPos/EscPosMobile/Unknown. Extracted the full 33-model table verbatim: TSP650II/700II/800II=StarLine; TSP100(ECO/IIU+/LAN/IIIW/IIILAN/IIIBI/IIIU)=StarGraphic; TSP100IV(_SK)/mPOP/mC-Print2,3/mC-Label2,3/mC-Connect/SM-S,T,L/BSC10II/SK1/SK5=StarPRNT; SP700=StarDot; CD5=StarCD5. Reproduced in StarModelEmulation.emulationFor().",
+      "sdk_free_mechanism": "StarWebDiscoverer: /24 port-80 sweep -> RAW-SOCKET HTTP/1.0 GET / (NOT HttpURLConnection: Android blocks cleartext HTTP on targetSdk 28+, silently -> 0 results; raw socket bypasses NetworkSecurityPolicy). If body contains 'Star Micronics' -> scrape MAC (regex, prefer OUI 00:11:62) + model ('<model> Web Configuration') -> emulation via the table. IP=host.",
+      "verified_ONDEVICE": "Discover/Star on V3_MIX returned BOTH TSP100IV (.35 + .2), brand=STAR, model=TSP100IV, emulation=StarPRNT (shown in UI card). (.2 was NOT the gateway after all — it is a Star printer.) Serial NOT available (matches: StarXpand discovery also returns null serial).",
+      "emulation_all_flows": "Extended DiscoveredPrinter.emulation across the whole search (was Star-only): Star=StarPRNT/StarLine/StarGraphic/StarDot/StarCD5 (model table); Zebra=ZPL; Epson=ESC/POS; Sunmi=ESC/POS; SNMP/generic hosts that answer ESC/POS GS I=ESC/POS; SNMP-only hosts (no GS I)=null (command set unprovable from SNMP alone). Emulation reflects what the printer demonstrably speaks. BUILD SUCCESSFUL, tests=21. On-device re-run blocked (device secure-locked); Epson/Sunmi/Zebra values are constants + Star is unit-tested, so correct by construction; runtime ASSUMED.",
+      "mac_fix": "FIXED the MAC selection: the Star page lists every interface with its own MAC; an inactive NIC (e.g. unplugged wired LAN at 0.0.0.0) must NOT be returned. macFrom(body, ip) now picks the MAC from the 'Network Status' block whose IP == the connected IP (the active interface). Verified: real .35 page has LAN{MAC 5A:DC:F7, IP 0.0.0.0} + WLAN{MAC 57:A1:4E, IP 192.168.80.35} -> now returns 57:A1:4E (matches ARP + StarXpand). StarWebDiscovererTest asserts this against the real page layout. tests=21 (added StarWebDiscovererTest x2). Device is now secure-locked so the button re-tap couldn't be repeated; fix proven by unit test.",
+      "supersedable": true
+    },
+    {
+      "id": "D11",
+      "date": "2026-07-17",
+      "by": "claude+user",
+      "decision": "Added ESC/POS GS I MAKER/MODEL branding as a fallback when SNMP can't identify a host. EscPosSerialProbe.queryIdentity() reads GS I 66 (maker) + 67 (model) + 68 (serial) on one socket; SnmpDiscovery.buildPrinter maps the maker string via SnmpIdentityProbe.matchBrand (BRAND_TOKENS, now incl. SUNMI). So a printer exposing NEITHER SNMP NOR mDNS still gets branded over raw 9100.",
+      "why_ONDEVICE": "User thought host 192.168.80.49 was a Seiko. Direct probe from the Mac (same subnet) proved it is a SUNMI NT311: GS I 66->'SUNMI', 67->'NT311', 68->'N42122ANT1360', 65->'2.17.0/2.45.0'. It has NO SNMP and its mDNS name isn't 'CloudPrint_', so the SNMP + Sunmi-mDNS flows both missed it -> it showed GENERIC. The ESC/POS maker fixes that: it now brands as SUNMI NT311. VERIFIED on-device via Discover All.",
+      "perf": "queryIdentity short-circuits: if GS I 66 (maker) returns nothing the host isn't an ESC/POS printer (e.g. gateway .2, non-printer .35) -> bail immediately instead of waiting out model+serial timeouts (this was dropping .35 from results before the fix). Only runs when SNMP didn't brand the host.",
+      "also": "Added testOptions.unitTests.isReturnDefaultValues=true (android.util.Log diagnostics added to SnmpIdentityProbe were throwing in JVM unit tests). Diagnostic logging kept (SnmpIdentityProbe 'ip: sysObjId/sysDescr -> brand'; example app 'PrinterResult').",
+      "verified": "BUILD SUCCESSFUL; tests=16 failures=0; Discover All on V3_MIX returns EPSON x3 (MAC+serial), STAR x2 (MAC), SUNMI NT311 (serial), + 2 GENERIC non-printers (.2 gateway, .35). ",
+      "supersedable": true
+    },
+    {
+      "id": "D10",
+      "date": "2026-07-17",
+      "by": "claude+user",
+      "decision": "Star discovery added via the PROPRIETARY StarXpand SDK (StarIO10 v2, com.starmicronics:stario10:1.12.0) — kept OUT of the SDK-free core in a NEW OPTIONAL module :adapter-star, per CLAUDE.md rule 6. StarSdkDiscoverer implements the PrinterDiscoverer interface (from D9) and plugs into UniversalPrinterSearch via additionalDiscoverers with ZERO core changes. User directive: 'use StarXpand SDK'.",
+      "why": "Star's LAN discovery wire protocol is NOT public and cannot be reproduced SDK-free; StarXpand's StarDeviceDiscoveryManager returns each printer's MAC as connectionSettings.identifier (e.g. 00:11:62:...). On-device we confirmed Star gets NO MAC via the SDK-free flows — the SDK is the only way. So Star intentionally breaks the SDK-free rule, contained to an optional module (core AAR stays clean/publishable).",
+      "api_VERIFIED_by_compile": "StarDeviceDiscoveryManagerFactory.create(interfaceTypes: List<InterfaceType>, context) ; manager.discoveryTime (ms) ; manager.callback = StarDeviceDiscoveryManager.Callback { onPrinterFound(printer: StarPrinter); onDiscoveryFinished() } ; manager.startDiscovery()/stopDiscovery() ; printer.connectionSettings.identifier = MAC ; printer.information?.model = StarPrinterModel ENUM (use .name for a String). Wrapped in suspendCancellableCoroutine, never-throws. All VERIFIED by compiling against the real SDK from Maven Central.",
+      "constraints": "StarXpand 1.12.0 requires minSdk 26 -> bumped :adapter-star and :example to minSdk 26 (core :universal-printer-search stays minSdk 21). Example APK grew 8.5MB -> 26MB (the StarXpand SDK bundle). Also fixed discoverAll dedup key: ipAddress ?: macAddress ?: serialNumber ?: brand:name (Star has MAC but no IP, so IP-only distinctBy would have collapsed all Star printers).",
+      "verified": "BUILD SUCCESSFUL (:adapter-star + :example assembleDebug); testDebugUnitTest tests=16 failures=0; APK reinstalled + launched on V3_MIX device. Runtime Star discovery ASSUMED until a real Star printer is on the LAN and the Star button returns it with a MAC.",
+      "sources": ["https://star-m.jp/products/s_print/sdk/starxpand/manual/en/android-kotlin-api-reference/stario10/star-device-discovery-manager/start-discovery.html", "https://mvnrepository.com/artifact/com.starmicronics/stario10", "https://star-m.jp/products/s_print/sdk/starxpand/manual/en/ios-swift/api-reference/star-connection-settings/identifier.html"],
+      "supersedable": true
+    },
+    {
+      "id": "D9",
+      "date": "2026-07-17",
+      "by": "claude+user",
+      "decision": "SOLID/structure hardening of the discovery tier: introduced the missing abstraction layer. (1) fun interface PrinterDiscoverer { suspend fun discover(): List<DiscoveredPrinter> } — facade discoverAll() now folds over a List<PrinterDiscoverer> + a new additionalDiscoverers ctor param, so adding a mechanism = register one more, no facade edit (fixes OCP). (2) interface SnmpTransport implemented by SnmpClient; SnmpIdentityProbe depends on SnmpTransport not the concrete client (fixes DIP + makes probe() unit-testable with a fake). (3) Injected CoroutineDispatcher (default Dispatchers.IO) into SnmpClient/SnmpDiscovery/ZebraDiscovery/EpsonDiscovery per android-dev skill guidance.",
+      "rationale": "Code review with android-skills:android-dev found SRP/packaging production-grade but OCP weak (facade hardcoded the flow list) and DIP partial (constructor injection onto concrete FINAL classes — proven by tests only being able to cover pure functions, not probe()). The interface layer lifts OCP+DIP to green and unlocks full testability.",
+      "verified": "BUILD SUCCESSFUL (lib + example assembleDebug); testDebugUnitTest tests=16 failures=0 (SnmpIdentityProbeTest 5->8: added probe() tests via a FakeSnmpTransport — the DIP payoff). Behavior preserved: discoverAll still branded-first (Epson ENPC first) via registration order + distinctBy(ip).",
+      "not_done": "Dispatcher injection NOT propagated to the lower probes/transports (EpsonTcpProbe, EpsonUdpDiscovery, EscPosSerialProbe, NetworkScanner) — only the top-level orchestrators + SnmpClient. Concrete discoverers still don't implement PrinterDiscoverer directly (facade wraps them as SAM adapters, context bound per-call). Both acceptable; revisit if deeper dispatcher-swap tests are needed.",
+      "supersedable": true
+    },
+    {
+      "id": "D8",
+      "date": "2026-07-16",
+      "by": "claude+user",
+      "decision": "Added Star Micronics, Zebra, Bixolon, Citizen, Brother discovery SDK-free. GENERALIZED the Seiko SNMP flow (D7) into a brand-agnostic SNMP flow (network/seiko -> network/snmp) + added a Zebra UDP-4201 flow (network/zebra). PARTIALLY SUPERSEDES D1's Star/Zebra exclusion for DISCOVERY only (printing still needs each vendor SDK).",
+      "rationale": "User directive (showed the 5-brand research table): 'we have to add these brands.' Research (2026-07-16): 4 of 5 (Star/Bixolon/Citizen/Brother) identify over standard SNMP/Printer-MIB — same mechanism as Seiko — so one brand-agnostic SNMP flow with a sysDescr token->brand map covers them all + folds Seiko in. Zebra needs its own protocol: documented SDK-free UDP-4201 broadcast (request 2E2C3A010000; reply 3A2C2E..03 with model@0x0C/serial@0x38/hostname@0x54, no MAC -> MAC via SNMP). Mirrors EpsonUdpDiscovery.",
+      "user_choices": "GROUPED API: discoverSnmpPrinters() (all SNMP brands + GENERIC-with-identity in one sweep) + discoverZebraPrinters(); caller reads DiscoveredPrinter.brand. ENRICHED generic scan: discoverNetworkPrinters() now SNMP-enriches each hit (IP+MAC+model+serial; GENERIC IP-only if no SNMP).",
+      "implementation": "network/snmp/{Snmp,SnmpClient,SnmpIdentityProbe,SnmpDiscovery}.kt (Snmp/SnmpClient moved from network/seiko, now brand-agnostic); network/zebra/{ZebraUdpDiscovery,ZebraDiscovery}.kt; PrinterBrand += STAR,ZEBRA,BIXOLON,CITIZEN,BROTHER; facade discoverSnmpPrinters()/discoverZebraPrinters()/probeSnmp(), discoverSeikoPrinters() now a filter wrapper, discoverAll merge (epson ENPC first, then sunmi, zebra, snmp-enriched sweep); example SNMP+Zebra buttons. network/seiko/ DELETED.",
+      "brand_tokens_ASSUMED": "sysDescr/hrDeviceDescr uppercased -> brand: EPSON=EPSON; STAR=STAR; ZEBRA=ZEBRA/ZTC/ZBR; BIXOLON=BIXOLON/BXL; CITIZEN=CITIZEN/CBM; BROTHER=BROTHER; SEIKO=SEIKO/SII/RP-E/RP-D/RP-F. All ASSUMED + overridable (SnmpIdentityProbe.BRAND_TOKENS); Zebra byte offsets ASSUMED from reverse-engineering. NOT hardware-verified.",
+      "verified": "BUILD SUCCESSFUL (:universal-printer-search + :example assembleDebug) and testDebugUnitTest tests=10 failures=0 errors=0 (SnmpTest 5 + SnmpIdentityProbeTest 3 brand-mapping + ZebraUdpParseTest 2 offset-parsing) (2026-07-16). COMPILE + parsing/mapping logic only; no real printer of any of these brands tested.",
+      "sources": [
+        "https://jfr.im/blog/2024/09/zebra-network-discovery-protocol/ (Zebra UDP-4201 request/response offsets, reverse-engineered)",
+        "https://support.zebra.com/ (Zebra default ports: 4201 discovery, 9100 raw, 161 SNMP)",
+        "https://www.sphericalinsights.com/blogs/top-25-companies-in-global-pos-receipt-printers-market-strategic-overview-and-future-trends-2026-2035 (Star #1 non-Epson ~14-18%, Bixolon ~12-16%)",
+        "https://www.globenewswire.com/news-release/2025/08/26/3139065/28124/en/north-american-retail-store-printer-market-report-2025-with-profiles-of-bixolon-brother-citizen-systems-diebold-nixdorf-epson-seiko-sewoo-sunmi-toshiba-transact-woosim-and-more.html (brand list)",
+        "https://starmicronics.com/product/printer-interfaces/ (Star ports 9100 + UDP 2222)"
+      ],
+      "supersedable": true
+    },
+    {
+      "id": "D7",
+      "date": "2026-07-16",
+      "by": "claude+user",
+      "decision": "Seiko RP-series receipt printers (RP-E10/E11, RP-D10, RP-F10) are now IN scope, added SDK-free via SNMP. PARTIALLY SUPERSEDES the RP portion of D1's Seiko exclusion and the 'no SDK-free path' conclusion in D6.seiko. Does NOT change the SLP720/721RT label printers — those remain OUT (still need the Sii SDK / a device capture).",
+      "rationale": "User directive: 'implement seiko printer search without sdk'. Research (2026-07-16) confirmed RP-series are Ethernet + industry-standard ESC/POS and, like ~all networked POS printers, expose SNMP/MIB on UDP/161 — the vendor-neutral, SDK-free way to read make/model/serial. Discovery reuses the existing TCP-9100 /24 sweep (NetworkScanner) to find live hosts, then a hand-rolled SNMPv1 GET (raw DatagramSocket, no snmp4j) reads standard OIDs to positively identify Seiko. No proprietary jar; AAR stays clean.",
+      "implementation": "network/seiko/Snmp.kt (BER codec) + SnmpClient.kt (UDP/161 GET) + SeikoSnmpProbe.kt (OID orchestration + brand match) + SeikoDiscovery.kt (sweep -> SNMP identify). Facade: discoverSeikoPrinters(), probeSeiko(ip), discoverAll() merge, PrinterBrand.SEIKO. Example: Seiko button. Unit test SnmpTest (5 cases, all pass).",
+      "verified": "BUILD SUCCESSFUL (:universal-printer-search:assembleDebug + :example:assembleDebug) and testDebugUnitTest tests=5 failures=0 errors=0 (2026-07-16). COMPILE + codec logic only.",
+      "assumed_pending_hardware": "That an RP printer answers SNMP with community 'public' by default, and that its sysDescr/prtGeneralSerialNumber contain a Seiko token (SEIKO/SII/RP-E/RP-D/RP-F) + a real serial. SEIKO_TOKENS, OIDs, and community are all overridable so a real-device capture can tune them without structural change. NOT run against real RP hardware.",
+      "oids": {
+        "sysDescr.0": "1.3.6.1.2.1.1.1.0",
+        "hrDeviceDescr.1": "1.3.6.1.2.1.25.3.2.1.3.1",
+        "prtGeneralSerialNumber.1": "1.3.6.1.2.1.43.5.1.1.17.1",
+        "ifPhysAddress.1": "1.3.6.1.2.1.2.2.1.6.1"
+      },
+      "sources": [
+        "https://sii-thermalprinters.com/receipt-printers/rp-e10-e11-series-receipt-printers/ (RP-E10/E11 ESC/POS + Ethernet)",
+        "https://www.mouser.com/datasheet/2/360/Seiko_RPE10_Technical_Reference-355440.pdf (RP-E10 Technical Reference U00127424207)",
+        "https://www.ibm.com/support/pages/recommended-snmp-port-number-values-lan-3812-snmp-device-descriptions (printer SNMP/MIB identity)",
+        "https://www.cups.org/doc/network.html (9100 / SNMP / Bonjour discovery)"
+      ],
+      "supersedable": true
+    },
+    {
+      "id": "D6",
+      "date": "2026-07-15",
+      "by": "claude+user",
+      "decision": "Printer IDENTITY (serial/MAC) strategy per brand, after deep research (user: 'do deep research first'). Implement ONLY verified paths; do NOT hardcode unverified vendor command bytes.",
+      "findings": {
+        "epson": "VERIFIED: MAC via ENPC UDP (offset 54) + serial via GS I 68 (1D 49 44) TCP-9100. Implemented (EpsonUdpDiscovery + EpsonTcpProbe).",
+        "sunmi": "VERIFIED: serial via GS I 68 (foodhub customQuerySn() == GS_I_SERIAL == 1D 49 44); MAC via ARP (<=Android9). IMPLEMENTED this session: new EscPosSerialProbe (brand-agnostic GS I 68) wired into SunmiDiscovery.enrichIdentity + best-effort ARP MAC.",
+        "rongta": "PARTIAL: Rongta RP325/326/327/328 command set does NOT support GS I (verified via ManualsLib RP325 command set). It exposes serial/firmware/manufacturer/name via GS ( H (1D 28 48 ...) per that manual (p37), BUT the exact request params (pL pH fn m) + response layout could NOT be extracted (Chinese/binary PDFs, 403s). Discovery: generic TCP-9100 scan works (default IP 192.168.1.87, port 9100); Rongta setup tool uses a UDP broadcast whose exact port/packet is in an un-extractable PDF. DECISION: do NOT ship guessed GS ( H bytes; Rongta is discoverable via the generic scan, serial/MAC deferred until a real-device packet capture or the exact p37 spec is obtained.",
+        "seiko": "NOT VERIFIED SDK-free: Seiko SLP720/721RT is ESC/POS-compatible over TCP-9100 but no public command for programmatic serial/MAC was found; the original app used the proprietary Sii SDK (SiiAndroidSDK.jar). Hardware serial only via a front-panel button combo. DECISION: Seiko identity stays OUT of the SDK-free core (needs the Sii SDK or a device capture)."
+      },
+      "sources": [
+        "https://www.manualslib.com/manual/3423402/Rongta-Technology-Rp325.html (RP325 command set: no GS I; GS ( H returns serial p37)",
+        "https://www.rongtatech.com/blog/network-port-setting-and-test-page-printing-of-80mm-receipt-printer_b70 (default IP 192.168.1.87, port 9100)",
+        "https://siibusinessproducts.com/store/slp720-721rt/ (Seiko SLP720/721RT interfaces)",
+        "foodhub EscPosPrinterCommands.java:832 (customQuerySn == GS_I_SERIAL)"
+      ],
+      "supersedable": true
+    },
+    {
+      "id": "D5",
+      "date": "2026-07-15",
+      "by": "claude+user",
+      "decision": "Sunmi cloud-printer discovery ADDED to the SDK, SDK-free — PARTIALLY SUPERSEDES D1's exclusion of Sunmi. Implemented via Android NsdManager (DNS-SD/mDNS), not the Sunmi jar.",
+      "rationale": "Verified by decompiling com.sunmi:external-printerlibrary2:1.0.13 (downloaded from Maven Central; javap on classes.jar): its LanHelper does LAN discovery via NsdManager.discoverServices with service type '_afpovertcp._tcp.', resolves each service, and filters to service names starting with 'CloudPrint_' (CloudPrinterBuilder). No proprietary protocol — NsdManager is a platform API — so it is reimplementable SDK-free, exactly like the Epson ENPC port. The UDP-17899 multicast some Sunmi docs mention is NOT used by 1.0.13 (grepped the jar: no 17899/MulticastSocket).",
+      "evidence": "network/sunmi/SunmiDiscovery.kt; SERVICE_TYPE='_afpovertcp._tcp.', name prefix 'CloudPrint_', ip=resolved host, port=resolved port.",
+      "caveat": "resolveService is deprecated in API 34 (use registerServiceInfoCallback on 34+ as a follow-up). MAC/serial not available via this mDNS path; brand tagged SUNMI, name = mDNS service name. Runtime verification against a real Sunmi cloud printer NOT done.",
+      "supersedable": true
+    },
+    {
+      "id": "D1",
+      "date": "2026-07-15",
+      "by": "claude+user",
+      "decision": "Scope the SDK to the THREE SDK-free discovery flows only: Epson network (ENPC/UDP + GS I TCP probe), generic IP (TCP-9100 subnet sweep), and USB (UsbManager). EXCLUDE Star/Sunmi/Seiko/Zebra.",
+      "rationale": "Star (stario10), Sunmi (external-printerlibrary2), Seiko/Sii (SiiAndroidSDK.jar), and Zebra (ZSDK_ANDROID_API.jar) each require a proprietary SDK/jar that cannot be redistributed in an open library. The three chosen flows use only raw sockets + platform APIs, so the AAR is clean to publish.",
+      "supersedable": true
+    },
+    {
+      "id": "D2",
+      "date": "2026-07-15",
+      "by": "user",
+      "decision": "SDK name = 'Universal Printer Search'. Neutral namespace com.universalprintersearch; NO 'foodhub' anywhere. Root project 'universal-printer-search'; library module ':universal-printer-search'; public facade class 'UniversalPrinterSearch'.",
+      "rationale": "User directive: the SDK must be universal/vendor-neutral and must not carry the origin org's name.",
+      "supersedable": true
+    },
+    {
+      "id": "D3",
+      "date": "2026-07-15",
+      "by": "claude",
+      "decision": "Transport-agnostic subnet detection via NetworkInterface enumeration (NetworkUtils.localIpv4) instead of the source repo's WifiManager.connectionInfo.ipAddress.",
+      "rationale": "The source approach is WiFi-only + deprecated and returns 0/null on Ethernet POS terminals; NetworkInterface resolves a /24 on any transport. Removes a real limitation flagged during analysis.",
+      "supersedable": true
+    },
+    {
+      "id": "D4",
+      "date": "2026-07-15",
+      "by": "claude+user",
+      "decision": "Toolchain: AGP 8.5.2, Kotlin 2.0.20, Gradle 8.13, JDK 17, compileSdk 34, minSdk 21. Example app uses Jetpack Compose (BOM 2024.09.02).",
+      "rationale": "Modern, buildable defaults; Gradle 8.13 wrapper reused from the foodhub-printer-package example. Verified BUILD SUCCESSFUL.",
+      "supersedable": true
+    }
+  ]
+}

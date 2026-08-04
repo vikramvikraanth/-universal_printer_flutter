@@ -1,0 +1,83 @@
+package com.universalprinter
+
+import com.universalprinter.model.PreflightResult
+import com.universalprinter.model.PrintDocument
+import com.universalprinter.model.PrintResult
+import com.universalprinter.model.PrinterWarning
+import com.universalprinter.queue.PrintQueue
+import com.universalprinter.text.ReceiptRasterization
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+
+/** A print target. Every implementation serializes jobs through its own [PrintQueue]. */
+interface Printer {
+    val name: String
+
+    /** Establish/verify the connection. Returns false if the printer can't be reached. */
+    suspend fun connect(): Boolean
+
+    /** Enqueue a document; suspends until it has printed. Same-printer jobs run FIFO. */
+    suspend fun print(document: PrintDocument): PrintResult
+
+    /** Release resources (stops the queue, closes the connection). */
+    fun close()
+}
+
+/**
+ * Base class that wires the per-printer [PrintQueue]. Backends implement [doConnect]/[doPrint]/
+ * [doClose] and never touch the queue directly — [print] always routes through it.
+ */
+abstract class QueuedPrinter(
+    dispatcher: CoroutineDispatcher = Dispatchers.IO,
+    jobTimeoutMs: Long? = DEFAULT_JOB_TIMEOUT_MS,
+    private val preflightEnabled: Boolean = true,
+) : Printer {
+
+    private val scope = CoroutineScope(dispatcher + SupervisorJob())
+    private val queue = PrintQueue(scope, jobTimeoutMs) { runJob(it) }
+
+    final override suspend fun print(document: PrintDocument): PrintResult = queue.submit(document)
+
+    final override suspend fun connect(): Boolean = doConnect()
+
+    final override fun close() {
+        queue.close()
+        runCatching { doClose() }
+    }
+
+    private suspend fun runJob(document: PrintDocument): PrintResult {
+        if (preflightEnabled) {
+            when (val pf = preflight(document)) {
+                is PreflightResult.Block -> return PrintResult.Error(pf.message, reason = pf.reason)
+                is PreflightResult.Proceed -> return withWarnings(printRendered(document), pf.warnings)
+            }
+        }
+        return printRendered(document)
+    }
+
+    // Rasterize any non-Latin text to images (per the document's RenderMode) before the backend
+    // renders — transport-agnostic, so every backend gets i18n via its existing image path.
+    private suspend fun printRendered(document: PrintDocument): PrintResult =
+        doPrint(ReceiptRasterization.apply(document))
+
+    private fun withWarnings(result: PrintResult, warnings: List<PrinterWarning>): PrintResult =
+        if (warnings.isNotEmpty() && result is PrintResult.Success) PrintResult.Success(result.warnings + warnings) else result
+
+    protected abstract suspend fun doConnect(): Boolean
+
+    /** Perform the actual print. Called serially by the queue worker — never concurrently. */
+    protected abstract suspend fun doPrint(document: PrintDocument): PrintResult
+
+    /** Optional pre-flight status check. Default = proceed (no check). Overridden by backends whose
+     *  status can be read out-of-band (ESC/POS network, Sunmi). Gated by `preflightEnabled`. */
+    protected open suspend fun preflight(document: PrintDocument): PreflightResult = PreflightResult.Proceed()
+
+    protected open fun doClose() {}
+
+    companion object {
+        /** Default overall per-job time budget. A job that overruns yields a TIMEOUT error. */
+        const val DEFAULT_JOB_TIMEOUT_MS = 30_000L
+    }
+}

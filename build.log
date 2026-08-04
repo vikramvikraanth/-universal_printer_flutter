@@ -1,0 +1,98 @@
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/8.13/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build 
+> Task :universal-printer-search:preBuild UP-TO-DATE
+> Task :universal-printer-search:preDebugBuild UP-TO-DATE
+> Task :universal-printer-search:mergeDebugJniLibFolders UP-TO-DATE
+> Task :universal-printer-search:mergeDebugNativeLibs NO-SOURCE
+> Task :universal-printer-search:stripDebugDebugSymbols NO-SOURCE
+> Task :universal-printer-search:copyDebugJniLibsProjectAndLocalJars UP-TO-DATE
+> Task :universal-printer-search:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :universal-printer-search:generateDebugResValues UP-TO-DATE
+> Task :universal-printer-search:generateDebugResources UP-TO-DATE
+> Task :universal-printer-search:packageDebugResources UP-TO-DATE
+> Task :universal-printer-search:parseDebugLocalResources UP-TO-DATE
+> Task :universal-printer-search:generateDebugRFile UP-TO-DATE
+> Task :universal-printer-search:extractDeepLinksForAarDebug UP-TO-DATE
+> Task :universal-printer-search:javaPreCompileDebug UP-TO-DATE
+> Task :universal-printer-search:mergeDebugShaders UP-TO-DATE
+> Task :universal-printer-search:compileDebugShaders NO-SOURCE
+> Task :universal-printer-search:generateDebugAssets UP-TO-DATE
+> Task :universal-printer-search:packageDebugAssets UP-TO-DATE
+> Task :universal-printer-search:prepareDebugArtProfile UP-TO-DATE
+> Task :universal-printer-search:prepareLintJarForPublish UP-TO-DATE
+> Task :universal-printer-search:processDebugManifest UP-TO-DATE
+> Task :universal-printer-search:writeDebugAarMetadata UP-TO-DATE
+> Task :example:preBuild UP-TO-DATE
+> Task :example:preDebugBuild UP-TO-DATE
+> Task :example:mergeDebugNativeDebugMetadata NO-SOURCE
+> Task :example:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :example:checkDebugAarMetadata UP-TO-DATE
+> Task :example:generateDebugResValues UP-TO-DATE
+> Task :example:mapDebugSourceSetPaths UP-TO-DATE
+> Task :example:generateDebugResources UP-TO-DATE
+> Task :example:mergeDebugResources UP-TO-DATE
+> Task :example:packageDebugResources UP-TO-DATE
+> Task :example:parseDebugLocalResources UP-TO-DATE
+> Task :example:createDebugCompatibleScreenManifests UP-TO-DATE
+> Task :example:extractDeepLinksDebug UP-TO-DATE
+> Task :universal-printer-search:extractDeepLinksDebug UP-TO-DATE
+> Task :example:processDebugMainManifest UP-TO-DATE
+> Task :example:processDebugManifest UP-TO-DATE
+> Task :example:processDebugManifestForPackage UP-TO-DATE
+> Task :universal-printer-search:compileDebugLibraryResources UP-TO-DATE
+> Task :example:processDebugResources UP-TO-DATE
+> Task :example:javaPreCompileDebug UP-TO-DATE
+> Task :example:mergeDebugShaders UP-TO-DATE
+> Task :example:compileDebugShaders NO-SOURCE
+> Task :example:generateDebugAssets UP-TO-DATE
+> Task :example:mergeDebugAssets UP-TO-DATE
+> Task :example:compressDebugAssets UP-TO-DATE
+> Task :example:desugarDebugFileDependencies UP-TO-DATE
+> Task :example:checkDebugDuplicateClasses UP-TO-DATE
+> Task :example:mergeDebugStartupProfile UP-TO-DATE
+> Task :example:mergeExtDexDebug UP-TO-DATE
+> Task :example:mergeDebugJniLibFolders UP-TO-DATE
+> Task :universal-printer-search:copyDebugJniLibsProjectOnly UP-TO-DATE
+> Task :example:mergeDebugNativeLibs UP-TO-DATE
+> Task :example:stripDebugDebugSymbols UP-TO-DATE
+> Task :example:validateSigningDebug UP-TO-DATE
+> Task :example:writeDebugAppMetadata UP-TO-DATE
+> Task :example:writeDebugSigningConfigVersions UP-TO-DATE
+
+> Task :universal-printer-search:compileDebugKotlin
+w: file:///Users/vikram/Documents/vikram/sdk/universal-printer-search/src/main/java/com/universalprintersearch/network/sunmi/SunmiDiscovery.kt:101:17 'fun resolveService(p0: NsdServiceInfo!, p1: NsdManager.ResolveListener!): Unit' is deprecated. Deprecated in Java.
+w: file:///Users/vikram/Documents/vikram/sdk/universal-printer-search/src/main/java/com/universalprintersearch/network/sunmi/SunmiDiscovery.kt:108:42 'var host: InetAddress!' is deprecated. Deprecated in Java.
+
+> Task :universal-printer-search:extractDebugAnnotations
+> Task :universal-printer-search:compileDebugJavaWithJavac NO-SOURCE
+> Task :universal-printer-search:mergeDebugGeneratedProguardFiles UP-TO-DATE
+> Task :universal-printer-search:mergeDebugConsumerProguardFiles UP-TO-DATE
+> Task :universal-printer-search:processDebugJavaRes UP-TO-DATE
+> Task :universal-printer-search:mergeDebugJavaResource UP-TO-DATE
+> Task :universal-printer-search:syncDebugLibJars
+> Task :universal-printer-search:bundleDebugAar
+> Task :universal-printer-search:assembleDebug
+> Task :universal-printer-search:bundleLibCompileToJarDebug
+> Task :universal-printer-search:bundleLibRuntimeToJarDebug
+> Task :example:compileDebugKotlin
+> Task :example:compileDebugJavaWithJavac NO-SOURCE
+> Task :example:dexBuilderDebug
+> Task :example:processDebugJavaRes UP-TO-DATE
+> Task :example:mergeDebugJavaResource UP-TO-DATE
+> Task :example:mergeProjectDexDebug UP-TO-DATE
+> Task :example:mergeDebugGlobalSynthetics UP-TO-DATE
+> Task :example:mergeLibDexDebug
+> Task :example:packageDebug
+> Task :example:createDebugApkListingFileRedirect UP-TO-DATE
+> Task :example:assembleDebug
+
+[Incubating] Problems report is available at: file:///Users/vikram/Documents/vikram/sdk/build/reports/problems/problems-report.html
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 9.0.
+
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/8.13/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+
+BUILD SUCCESSFUL in 9s
+64 actionable tasks: 10 executed, 54 up-to-date

@@ -1,0 +1,555 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Flutter Native Channel — universal_printer_flutter</title>
+<style>
+  :root {
+    --ink: #0E1524;
+    --surface: #151E30;
+    --surface-2: #1B2740;
+    --line: #26324f;
+    --line-soft: #1f2b45;
+    --dart: #46C8FF;
+    --dart-deep: #1e6f9a;
+    --native: #F6A65A;
+    --native-deep: #a5652c;
+    --spine: #9AA6C2;
+    --good: #56D6A0;
+    --text: #D8DFEF;
+    --muted: #8592AD;
+    --faint: #5c6885;
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Code", Menlo, Consolas, monospace;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background:
+      radial-gradient(1100px 620px at 50% -8%, #16223b 0%, rgba(22,34,59,0) 62%),
+      linear-gradient(var(--line-soft) 1px, transparent 1px) 0 0 / 34px 34px,
+      linear-gradient(90deg, var(--line-soft) 1px, transparent 1px) 0 0 / 34px 34px,
+      var(--ink);
+    background-blend-mode: normal, soft-light, soft-light, normal;
+    color: var(--text);
+    font-family: var(--sans);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 56px 24px 72px; }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--faint);
+    margin: 0 0 14px;
+  }
+  h1 {
+    font-family: var(--sans);
+    font-weight: 700;
+    font-size: clamp(30px, 5vw, 46px);
+    letter-spacing: -0.02em;
+    line-height: 1.04;
+    text-wrap: balance;
+    margin: 0 0 14px;
+  }
+  h1 .cy { color: var(--dart); }
+  h1 .am { color: var(--native); }
+  .lede {
+    max-width: 60ch;
+    color: var(--muted);
+    font-size: 16px;
+    margin: 0;
+  }
+
+  /* binding contract pill */
+  .contract {
+    margin: 30px 0 8px;
+    display: flex;
+    align-items: center;
+    gap: 0;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    overflow: hidden;
+    background: var(--surface);
+    font-family: var(--mono);
+  }
+  .contract .end {
+    padding: 13px 18px;
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .contract .end.l { color: var(--dart); }
+  .contract .end.r { color: var(--native); margin-left: auto; }
+  .contract .mid {
+    flex: 1;
+    text-align: center;
+    padding: 13px 12px;
+    font-size: 13.5px;
+    color: var(--text);
+    background:
+      repeating-linear-gradient(90deg, var(--line) 0 7px, transparent 7px 15px) center / 100% 1px no-repeat;
+    position: relative;
+    min-width: 0;
+    overflow-x: auto;
+  }
+  .contract .mid b { color: #fff; font-weight: 600; }
+
+  .section-label {
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--faint);
+    margin: 52px 0 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .section-label::after { content: ""; flex: 1; height: 1px; background: var(--line-soft); }
+
+  /* ---- HERO BOARD: dart | spine | native ---- */
+  .board {
+    display: grid;
+    grid-template-columns: 1fr 92px 1fr;
+    gap: 0;
+    align-items: stretch;
+  }
+  .col { display: flex; flex-direction: column; gap: 14px; }
+  .col-head {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    padding-bottom: 6px;
+  }
+  .col.dart .col-head { color: var(--dart); }
+  .col.native .col-head { color: var(--native); }
+  .col.dart .col-head .sub, .col.native .col-head .sub { color: var(--faint); letter-spacing: 0; text-transform: none; }
+
+  .node {
+    border: 1px solid var(--line);
+    border-radius: 11px;
+    background: linear-gradient(180deg, var(--surface-2), var(--surface));
+    padding: 14px 15px;
+    position: relative;
+  }
+  .col.dart .node { border-left: 3px solid var(--dart-deep); }
+  .col.native .node { border-left: 3px solid var(--native-deep); }
+  .node .name { font-family: var(--mono); font-size: 13.5px; font-weight: 600; color: var(--text); }
+  .node .name .k { color: var(--dart); }
+  .col.native .node .name .k { color: var(--native); }
+  .node .desc { font-size: 12.5px; color: var(--muted); margin-top: 5px; }
+  .node .desc code { font-family: var(--mono); font-size: 11.5px; color: #b9c4dd; background: #0f1728; padding: 1px 5px; border-radius: 5px; }
+
+  /* spine */
+  .spine {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .spine .rail {
+    position: absolute;
+    top: 34px; bottom: 8px;
+    width: 3px;
+    border-radius: 3px;
+    background:
+      repeating-linear-gradient(180deg, var(--spine) 0 8px, transparent 8px 18px);
+    opacity: 0.5;
+    animation: flow 1.5s linear infinite;
+  }
+  .spine .rail.up {
+    background: repeating-linear-gradient(180deg, var(--good) 0 8px, transparent 8px 18px);
+    animation: flowup 1.7s linear infinite;
+    left: calc(50% + 5px);
+    opacity: 0.42;
+  }
+  .spine .rail.down { left: calc(50% - 8px); }
+  @keyframes flow { to { background-position: 0 18px; } }
+  @keyframes flowup { to { background-position: 0 -18px; } }
+  .spine .tag {
+    position: relative;
+    z-index: 2;
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--spine);
+    background: var(--ink);
+    padding: 12px 3px;
+    border: 1px solid var(--line);
+    border-radius: 20px;
+  }
+  .spine .cap {
+    position: absolute; z-index: 2;
+    left: 50%; transform: translateX(-50%);
+    font-family: var(--mono); font-size: 15px; color: var(--spine);
+  }
+  .spine .cap.top { top: 6px; }
+  .spine .cap.bot { bottom: -14px; }
+
+  /* ---- round-trip lanes ---- */
+  .lane {
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: var(--surface);
+    padding: 18px 18px 16px;
+    margin-bottom: 16px;
+  }
+  .lane h3 {
+    margin: 0 0 3px;
+    font-family: var(--mono);
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+  .lane .kind { color: var(--faint); font-weight: 400; }
+  .lane .note { color: var(--muted); font-size: 12.5px; margin: 0 0 15px; }
+  .steps {
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+    overflow-x: auto;
+    padding-bottom: 6px;
+  }
+  .step {
+    flex: 0 0 auto;
+    min-width: 150px;
+    max-width: 210px;
+    border-radius: 10px;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    background: var(--surface-2);
+  }
+  .step.d { border-top: 2px solid var(--dart); }
+  .step.n { border-top: 2px solid var(--native); }
+  .step.g { border-top: 2px solid var(--good); }
+  .step .who {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    margin-bottom: 5px;
+  }
+  .step.d .who { color: var(--dart); }
+  .step.n .who { color: var(--native); }
+  .step.g .who { color: var(--good); }
+  .step code, .step .code {
+    display: block;
+    font-family: var(--mono);
+    font-size: 11.5px;
+    color: var(--text);
+    line-height: 1.45;
+    word-break: break-word;
+  }
+  .arrow {
+    flex: 0 0 auto;
+    align-self: center;
+    width: 30px;
+    text-align: center;
+    color: var(--faint);
+    font-family: var(--mono);
+    font-size: 16px;
+  }
+
+  /* ---- contract table ---- */
+  .tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 14px; }
+  table { border-collapse: collapse; width: 100%; min-width: 640px; font-size: 13px; }
+  thead th {
+    text-align: left;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--faint);
+    font-weight: 600;
+    padding: 13px 16px;
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--line);
+  }
+  tbody td { padding: 11px 16px; border-bottom: 1px solid var(--line-soft); vertical-align: top; }
+  tbody tr:last-child td { border-bottom: none; }
+  td.m { font-family: var(--mono); color: var(--native); font-size: 12.5px; white-space: nowrap; }
+  td.dartcall { font-family: var(--mono); color: var(--dart); font-size: 12px; }
+  td.ret { font-family: var(--mono); color: var(--text); font-size: 12px; }
+  td.args { font-family: var(--mono); color: var(--muted); font-size: 11.5px; }
+
+  /* ---- invariants ---- */
+  .rules { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  .rule {
+    border: 1px solid var(--line);
+    border-radius: 13px;
+    background: var(--surface);
+    padding: 17px 17px 18px;
+  }
+  .rule .n {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--good);
+    letter-spacing: 0.1em;
+  }
+  .rule h4 { margin: 8px 0 7px; font-size: 14.5px; font-weight: 650; letter-spacing: -0.01em; }
+  .rule p { margin: 0; font-size: 12.5px; color: var(--muted); }
+  .rule p code { font-family: var(--mono); font-size: 11.5px; color: #b9c4dd; }
+
+  .foot {
+    margin-top: 30px;
+    border: 1px dashed var(--line);
+    border-radius: 13px;
+    padding: 15px 18px;
+    display: flex;
+    gap: 14px;
+    align-items: baseline;
+    flex-wrap: wrap;
+    background: rgba(21,30,48,0.5);
+  }
+  .foot .badge {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--native);
+    border: 1px solid var(--native-deep);
+    border-radius: 20px;
+    padding: 4px 11px;
+  }
+  .foot p { margin: 0; font-size: 12.5px; color: var(--muted); }
+  .foot code { font-family: var(--mono); color: #b9c4dd; font-size: 11.5px; }
+
+  @media (max-width: 720px) {
+    .board { grid-template-columns: 1fr; }
+    .spine { flex-direction: row; height: 54px; margin: 4px 0; }
+    .spine .rail { top: 50%; bottom: auto; left: 8px; right: 8px; width: auto; height: 3px;
+      background: repeating-linear-gradient(90deg, var(--spine) 0 8px, transparent 8px 18px); animation: none; }
+    .spine .rail.up { display: none; }
+    .spine .tag { writing-mode: horizontal-tb; }
+    .spine .cap { display: none; }
+    .rules { grid-template-columns: 1fr; }
+    .contract { flex-direction: column; align-items: stretch; }
+    .contract .end.r { margin-left: 0; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .spine .rail { animation: none; }
+  }
+</style>
+</head>
+<body>
+
+
+<div class="wrap">
+  <p class="eyebrow">Platform Channel · Architecture</p>
+  <h1>One channel, <span class="cy">two worlds</span>,<br>messages across a <span class="am">boundary</span></h1>
+  <p class="lede">
+    A Flutter <em>MethodChannel</em> is a named, asynchronous message pipe. Dart and native code each
+    hold a channel with the <strong>same name</strong> — that string is the entire binding. Everything
+    else is serialize → cross → deserialize.
+  </p>
+
+  <div class="contract" role="img" aria-label="Both sides bind to a channel named universal_printer_flutter">
+    <span class="end l">MethodChannel(&quot;…&quot;)&nbsp;·&nbsp;Dart</span>
+    <span class="mid">binding contract&nbsp;→&nbsp;<b>&quot;universal_printer_flutter&quot;</b></span>
+    <span class="end r">Native&nbsp;·&nbsp;FlutterMethodChannel(&quot;…&quot;)</span>
+  </div>
+
+  <!-- ===== HERO BOARD ===== -->
+  <div class="section-label">the two ends &amp; the translator between them</div>
+  <div class="board">
+    <!-- DART -->
+    <div class="col dart">
+      <div class="col-head">Dart&nbsp;·&nbsp;<span class="sub">lib/</span></div>
+      <div class="node">
+        <div class="name"><span class="k">UniversalPrinterFlutter</span></div>
+        <div class="desc">Public facade. <code>Platform.isAndroid</code> guard, then <code>invokeMethod()</code>.</div>
+      </div>
+      <div class="node">
+        <div class="name"><span class="k">Printer</span> <span style="color:var(--faint)">(handle)</span></div>
+        <div class="desc">Holds an id string; calls <code>printDocument</code> / <code>closePrinter</code> by handle.</div>
+      </div>
+      <div class="node">
+        <div class="name">models.dart</div>
+        <div class="desc"><code>toJson()</code> / <code>fromMap()</code>; enums carry <code>.wire</code>.</div>
+      </div>
+    </div>
+
+    <!-- SPINE -->
+    <div class="spine" aria-hidden="true">
+      <div class="rail down"></div>
+      <div class="rail up"></div>
+      <span class="cap top">▲</span>
+      <span class="tag">BinaryMessenger · StandardMethodCodec</span>
+      <span class="cap bot">▼</span>
+    </div>
+
+    <!-- NATIVE -->
+    <div class="col native">
+      <div class="col-head">Native&nbsp;·&nbsp;<span class="sub">android/…/kotlin</span></div>
+      <div class="node">
+        <div class="name"><span class="k">UniversalPrinterFlutterPlugin</span></div>
+        <div class="desc"><code>FlutterPlugin, ActivityAware, MethodCallHandler</code> — <code>onMethodCall()</code> routes every method.</div>
+      </div>
+      <div class="node">
+        <div class="name"><span class="k">Bridge.kt</span></div>
+        <div class="desc">Map ↔ <code>PrintDocument</code> / <code>DiscoveredPrinter</code> / <code>PrintResult</code>.</div>
+      </div>
+      <div class="node">
+        <div class="name">handle registry</div>
+        <div class="desc"><code>ConcurrentHashMap&lt;String, Printer&gt;</code> — stateful printers live here.</div>
+      </div>
+      <div class="node">
+        <div class="name">moved SDK</div>
+        <div class="desc"><code>UniversalPrinterSearch</code> · <code>UniversalPrinter</code> + vendor SDKs (unchanged).</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== ROUND TRIPS ===== -->
+  <div class="section-label">round-trips — how a call actually crosses</div>
+
+  <div class="lane">
+    <h3>Discovery <span class="kind">— stateless: returns the whole list</span></h3>
+    <p class="note">A plain request/response. The heavy work (UDP/TCP scan) runs off the main thread; only the serialized list crosses back.</p>
+    <div class="steps">
+      <div class="step d">
+        <div class="who">Dart</div>
+        <span class="code">discoverNetwork()<br>→ invokeListMethod(<br>&nbsp;&nbsp;'discoverNetwork')</span>
+      </div>
+      <div class="arrow">→</div>
+      <div class="step n">
+        <div class="who">Native · route</div>
+        <span class="code">onMethodCall(<br>&nbsp;&nbsp;"discoverNetwork")</span>
+      </div>
+      <div class="arrow">→</div>
+      <div class="step n">
+        <div class="who">Native · work</div>
+        <span class="code">scope.launch(Main){<br>&nbsp;withContext(IO){<br>&nbsp;&nbsp;discovery.<br>&nbsp;&nbsp;discoverNetwork…()</span>
+      </div>
+      <div class="arrow">→</div>
+      <div class="step n">
+        <div class="who">Native · encode</div>
+        <span class="code">Bridge<br>&nbsp;.printersToList()<br>→ List&lt;Map&gt;</span>
+      </div>
+      <div class="arrow">↩</div>
+      <div class="step g">
+        <div class="who">reply · Main thread</div>
+        <span class="code">result.success(list)<br>→ Dart:<br>&nbsp;.map(fromMap)</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="lane">
+    <h3>Printing <span class="kind">— stateful: object stays native, referenced by handle</span></h3>
+    <p class="note">A channel can't hold a native object, so the printer is created once, kept in the registry, and driven by its id.</p>
+    <div class="steps">
+      <div class="step d">
+        <div class="who">Dart</div>
+        <span class="code">networkPrinter("…")<br>→ createPrinter<br>&nbsp;{kind,host,port}</span>
+      </div>
+      <div class="arrow">→</div>
+      <div class="step n">
+        <div class="who">Native</div>
+        <span class="code">UniversalPrinter<br>&nbsp;.network(…)<br>printers["p1"]=it<br>→ "p1"</span>
+      </div>
+      <div class="arrow">→</div>
+      <div class="step d">
+        <div class="who">Dart · by handle</div>
+        <span class="code">printer.printDocument(<br>&nbsp;doc, type)<br>{handle:"p1",<br>&nbsp;document, type}</span>
+      </div>
+      <div class="arrow">→</div>
+      <div class="step n">
+        <div class="who">Native</div>
+        <span class="code">printers["p1"]<br>&nbsp;.printReceipt(<br>&nbsp;&nbsp;buildDocument(map))</span>
+      </div>
+      <div class="arrow">↩</div>
+      <div class="step g">
+        <div class="who">reply</div>
+        <span class="code">{status,reason?,<br>&nbsp;message?,warnings?}<br>→ PrintResult<br>&nbsp;.fromMap()</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== CONTRACT TABLE ===== -->
+  <div class="section-label">the method contract — what travels on the wire</div>
+  <div class="tablewrap">
+    <table>
+      <thead>
+        <tr><th>Dart call</th><th>method string</th><th>args</th><th>returns</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="dartcall">discoverEpson / Sunmi / Zebra /<br>Star / Snmp / Seiko / Network / Usb / All</td>
+          <td class="m">discover*</td>
+          <td class="args">—</td>
+          <td class="ret">List&lt;Map&gt;</td>
+        </tr>
+        <tr>
+          <td class="dartcall">ping(ip)</td>
+          <td class="m">ping</td>
+          <td class="args">{ ip }</td>
+          <td class="ret">bool</td>
+        </tr>
+        <tr>
+          <td class="dartcall">networkPrinter / star /<br>sunmi / imin / usbPrinter</td>
+          <td class="m">createPrinter</td>
+          <td class="args">{ kind, host, port,<br>identifier, vendorId, productId }</td>
+          <td class="ret">String&nbsp;handle</td>
+        </tr>
+        <tr>
+          <td class="dartcall">printer.printDocument(doc, type)</td>
+          <td class="m">printDocument</td>
+          <td class="args">{ handle, document, type }</td>
+          <td class="ret">{ status, reason?,<br>message?, warnings? }</td>
+        </tr>
+        <tr>
+          <td class="dartcall">receiptHtml(doc)</td>
+          <td class="m">receiptHtml</td>
+          <td class="args">{ document }</td>
+          <td class="ret">String&nbsp;(HTML)</td>
+        </tr>
+        <tr>
+          <td class="dartcall">printer.close()</td>
+          <td class="m">closePrinter</td>
+          <td class="args">{ handle }</td>
+          <td class="ret">null</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ===== INVARIANTS ===== -->
+  <div class="section-label">three invariants that keep it correct</div>
+  <div class="rules">
+    <div class="rule">
+      <div class="n">01</div>
+      <h4>Enums cross as strings</h4>
+      <p>Each Dart enum carries its Kotlin <code>.name</code> as <code>.wire</code> — <code>PrintAlign.center → "CENTER"</code> — so two type systems stay in sync with no shared codegen.</p>
+    </div>
+    <div class="rule">
+      <div class="n">02</div>
+      <h4>Reply on the main thread</h4>
+      <p>Blocking work runs on <code>Dispatchers.IO</code>; <code>result.success()</code> is always delivered back on Main — MethodChannel requires it.</p>
+    </div>
+    <div class="rule">
+      <div class="n">03</div>
+      <h4>State by handle, never by value</h4>
+      <p>A live <code>Printer</code> (socket + FIFO queue) is kept in a native registry and referenced by id. The object never crosses the wire — only its handle does.</p>
+    </div>
+  </div>
+
+  <div class="foot">
+    <span class="badge">iOS · same channel</span>
+    <p>The iOS side registers the identical channel name and returns <code>FlutterError("UNSUPPORTED_PLATFORM")</code> — a deliberate no-crash stub, not a missing plugin. The Dart <code>Platform.isAndroid</code> guard short-circuits before the wire is even touched.</p>
+  </div>
+</div>
+
+</body>
+</html>
