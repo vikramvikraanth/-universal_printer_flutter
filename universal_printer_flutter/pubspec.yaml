@@ -1,8 +1,7 @@
 name: universal_printer_flutter
 description: "Flutter plugin for the Universal Printer SDK: discover (Epson/Sunmi/Zebra/Star/SNMP/USB) and print (ESC/POS network/USB, Star, Sunmi/iMin) on Android."
 version: 0.0.1
-# TODO: replace with the real repository URL before publishing.
-repository: https://github.com/foodhub/universal_printer_flutter
+repository: https://github.com/vikramvikraanth/-universal_printer_flutter
 
 environment:
   sdk: ^3.11.5
