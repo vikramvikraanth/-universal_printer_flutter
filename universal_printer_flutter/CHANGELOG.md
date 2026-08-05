@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.0.2
+
+- **Built-in printer discovery:** `discoverBuiltIn()` detects the host device's own Sunmi/iMin printer
+  (via the vendor print-service package) and is folded into `discoverAll()`.
+- `PrinterConnectionType.builtIn` + `DiscoveredPrinter.isBuiltIn`; new `PrinterBrand.imin`.
+- **Supported paper size:** `DiscoveredPrinter.supportedPaperWidthsMm` (e.g. `[58]` / `[80]`), queried
+  live from the vendor SDK for built-in printers.
+
 ## 0.0.1
 
 - Initial Android implementation: a federated Flutter plugin wrapping the Universal Printer Kotlin SDK

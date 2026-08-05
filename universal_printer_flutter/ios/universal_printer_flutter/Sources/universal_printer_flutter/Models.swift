@@ -66,6 +66,7 @@ struct DiscoveredPrinter {
     var vendorId: Int?
     var productId: Int?
     var usbDeviceName: String?
+    var supportedPaperWidthsMm: [Int] = []
 
     static let impactTokens = ["TM-U", "SP700", "SP742", "SRP-270", "SRP-275"]
 
@@ -73,6 +74,7 @@ struct DiscoveredPrinter {
         let id = (model ?? name).uppercased()
         return DiscoveredPrinter.impactTokens.contains { id.contains($0) }
     }
+    var isBuiltIn: Bool { connectionType == "BUILT_IN" }
     var effectiveEmulation: String { emulation ?? "ESC/POS" }
 
     func toMap() -> [String: Any] {
@@ -82,7 +84,8 @@ struct DiscoveredPrinter {
             "name": name, "connectionType": connectionType, "ipAddress": v(ipAddress), "port": port,
             "macAddress": v(macAddress), "serialNumber": v(serialNumber), "brand": brand, "model": v(model),
             "emulation": v(emulation), "vendorId": v(vendorId), "productId": v(productId),
-            "usbDeviceName": v(usbDeviceName), "isImpact": isImpact, "effectiveEmulation": effectiveEmulation,
+            "usbDeviceName": v(usbDeviceName), "isImpact": isImpact, "isBuiltIn": isBuiltIn,
+            "supportedPaperWidthsMm": supportedPaperWidthsMm, "effectiveEmulation": effectiveEmulation,
         ]
     }
 }

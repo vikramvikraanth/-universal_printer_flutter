@@ -1,6 +1,6 @@
 name: universal_printer_flutter
 description: "Discover (Epson/Sunmi/Zebra/Star/SNMP/USB) and print ESC/POS receipts to network, USB, Star and Sunmi/iMin printers. Full on Android; network + Star on iOS."
-version: 0.0.1
+version: 0.0.2
 repository: https://github.com/vikramvikraanth/-universal_printer_flutter
 
 environment:

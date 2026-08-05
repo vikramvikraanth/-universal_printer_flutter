@@ -36,6 +36,12 @@ class UniversalPrinterFlutter {
   static Future<List<DiscoveredPrinter>> discoverSeiko() => _discover('discoverSeiko');
   static Future<List<DiscoveredPrinter>> discoverNetwork() => _discover('discoverNetwork');
   static Future<List<DiscoveredPrinter>> discoverUsb() => _discover('discoverUsb');
+
+  /// The host device's own **built-in** printer (Sunmi/iMin POS hardware), detected by the vendor
+  /// print-service package; paper size is queried live. Empty on non-vendor devices and on iOS.
+  static Future<List<DiscoveredPrinter>> discoverBuiltIn() => _discover('discoverBuiltIn');
+
+  /// Every source (network/USB/Star/… + built-in), de-duped.
   static Future<List<DiscoveredPrinter>> discoverAll() => _discover('discoverAll');
 
   static Future<List<DiscoveredPrinter>> _discover(String method) async {

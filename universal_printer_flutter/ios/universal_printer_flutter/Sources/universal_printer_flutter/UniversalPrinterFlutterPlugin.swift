@@ -29,8 +29,8 @@ public class UniversalPrinterFlutterPlugin: NSObject, FlutterPlugin {
             Discovery.bonjour { found in self.reply(result, found.map { $0.toMap() }) }
         case "discoverAll":
             discoverAll { found in self.reply(result, found.map { $0.toMap() }) }
-        case "discoverZebra", "discoverSnmp", "discoverSeiko", "discoverStar", "discoverUsb":
-            reply(result, [Any]())   // not supported / deferred on iOS
+        case "discoverZebra", "discoverSnmp", "discoverSeiko", "discoverStar", "discoverUsb", "discoverBuiltIn":
+            reply(result, [Any]())   // not supported / deferred on iOS (built-in = Android-only hardware)
         case "ping":
             Discovery.ping((args["ip"] as? String) ?? "") { ok in self.reply(result, ok) }
 

@@ -38,6 +38,8 @@ internal object Bridge {
         "productId" to p.productId,
         "usbDeviceName" to p.usbDeviceName,
         "isImpact" to p.isImpact,
+        "isBuiltIn" to p.isBuiltIn,
+        "supportedPaperWidthsMm" to p.supportedPaperWidthsMm,
         "effectiveEmulation" to p.effectiveEmulation,
     )
 

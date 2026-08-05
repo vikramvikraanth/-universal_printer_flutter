@@ -5,7 +5,8 @@ import 'dart:typed_data';
 
 enum PrinterConnectionType {
   network('NETWORK'),
-  usb('USB');
+  usb('USB'),
+  builtIn('BUILT_IN');
 
   const PrinterConnectionType(this.wire);
   final String wire;
@@ -16,6 +17,7 @@ enum PrinterConnectionType {
 enum PrinterBrand {
   epson('EPSON'),
   sunmi('SUNMI'),
+  imin('IMIN'),
   seiko('SEIKO'),
   star('STAR'),
   zebra('ZEBRA'),
@@ -159,6 +161,7 @@ class DiscoveredPrinter {
     this.productId,
     this.usbDeviceName,
     this.isImpact = false,
+    this.supportedPaperWidthsMm = const [],
     this.effectiveEmulation = 'ESC/POS',
   });
 
@@ -178,8 +181,15 @@ class DiscoveredPrinter {
   /// 9-pin impact / dot-matrix (text-only — no image/QR).
   final bool isImpact;
 
+  /// Paper widths (mm) the printer supports, e.g. `[58]` or `[58, 80]`. Populated for built-in
+  /// printers (queried live from the vendor SDK); empty when unknown.
+  final List<int> supportedPaperWidthsMm;
+
   /// [emulation] if known, else the ESC/POS default.
   final String effectiveEmulation;
+
+  /// True for the host device's own built-in printer (Sunmi/iMin POS hardware).
+  bool get isBuiltIn => connectionType == PrinterConnectionType.builtIn;
 
   factory DiscoveredPrinter.fromMap(Map<dynamic, dynamic> m) => DiscoveredPrinter(
         name: m['name'] as String? ?? 'Printer',
@@ -195,12 +205,15 @@ class DiscoveredPrinter {
         productId: (m['productId'] as num?)?.toInt(),
         usbDeviceName: m['usbDeviceName'] as String?,
         isImpact: m['isImpact'] as bool? ?? false,
+        supportedPaperWidthsMm:
+            (m['supportedPaperWidthsMm'] as List?)?.map((e) => (e as num).toInt()).toList() ?? const [],
         effectiveEmulation: m['effectiveEmulation'] as String? ?? 'ESC/POS',
       );
 
   @override
   String toString() => 'DiscoveredPrinter($name, $connectionType, ip=$ipAddress, brand=$brand, '
-      'model=$model, impact=$isImpact, emu=$effectiveEmulation)';
+      'model=$model, impact=$isImpact, builtIn=$isBuiltIn, paper=$supportedPaperWidthsMm, '
+      'emu=$effectiveEmulation)';
 }
 
 /// Outcome of a print job (mirrors Kotlin `PrintResult`).

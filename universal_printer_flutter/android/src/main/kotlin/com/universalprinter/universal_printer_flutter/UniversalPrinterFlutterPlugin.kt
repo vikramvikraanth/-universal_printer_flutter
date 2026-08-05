@@ -5,6 +5,7 @@ import android.content.Context
 import android.hardware.usb.UsbManager
 import com.universalprinter.Printer
 import com.universalprinter.UniversalPrinter
+import com.universalprinter.builtin.BuiltInPrinterDiscovery
 import com.universalprinter.model.PrintType
 import com.universalprinter.printReceipt
 import com.universalprintersearch.UniversalPrinterSearch
@@ -41,6 +42,7 @@ class UniversalPrinterFlutterPlugin :
     private var activity: Activity? = null
 
     private lateinit var discovery: UniversalPrinterSearch
+    private lateinit var builtIn: BuiltInPrinterDiscovery
     private val printers = ConcurrentHashMap<String, Printer>()
     private val handleSeq = AtomicLong(0)
 
@@ -54,6 +56,7 @@ class UniversalPrinterFlutterPlugin :
     override fun onAttachedToEngine(binding: FlutterPlugin.FlutterPluginBinding) {
         appContext = binding.applicationContext
         discovery = UniversalPrinterSearch(appContext)
+        builtIn = BuiltInPrinterDiscovery(appContext)
         channel = MethodChannel(binding.binaryMessenger, "universal_printer_flutter")
         channel.setMethodCallHandler(this)
     }
@@ -82,9 +85,12 @@ class UniversalPrinterFlutterPlugin :
             "discoverStar" -> discover(result) { discovery.discoverStarPrinters() }
             "discoverSeiko" -> discover(result) { discovery.discoverSeikoPrinters() }
             "discoverNetwork" -> discover(result) { discovery.discoverNetworkPrinters() }
-            "discoverAll" -> discover(result) { discovery.discoverAll() }
+            // network/USB/Star/... from the search facade, plus the host's built-in printer.
+            "discoverAll" -> discover(result) { discovery.discoverAll() + builtIn.discover() }
             // discoverUsbPrinters() isn't suspend, but the helper still runs it on Dispatchers.IO.
             "discoverUsb" -> discover(result) { discovery.discoverUsbPrinters() }
+            // host device's own built-in printer (Sunmi/iMin), detected by vendor service package.
+            "discoverBuiltIn" -> discover(result) { builtIn.discover() }
 
             "ping" -> {
                 val ip = call.argument<String>("ip").orEmpty()

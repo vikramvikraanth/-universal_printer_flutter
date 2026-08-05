@@ -30,6 +30,32 @@ void main() {
       expect(p.connectionType, PrinterConnectionType.network);
       expect(p.brand, PrinterBrand.unknown);
     });
+    test('parses a built-in printer with brand, type, and paper widths', () {
+      final p = DiscoveredPrinter.fromMap({
+        'name': 'Sunmi V2',
+        'connectionType': 'BUILT_IN',
+        'brand': 'SUNMI',
+        'model': 'V2',
+        'isBuiltIn': true,
+        'supportedPaperWidthsMm': [58],
+      });
+      expect(p.connectionType, PrinterConnectionType.builtIn);
+      expect(p.isBuiltIn, isTrue);
+      expect(p.brand, PrinterBrand.sunmi);
+      expect(p.supportedPaperWidthsMm, [58]);
+    });
+
+    test('parses the iMin brand and 80mm paper', () {
+      final p = DiscoveredPrinter.fromMap({
+        'name': 'iMin Swift',
+        'connectionType': 'BUILT_IN',
+        'brand': 'IMIN',
+        'supportedPaperWidthsMm': [80],
+      });
+      expect(p.brand, PrinterBrand.imin);
+      expect(p.isBuiltIn, isTrue);
+      expect(p.supportedPaperWidthsMm, [80]);
+    });
   });
 
   group('PrintResult.fromMap', () {

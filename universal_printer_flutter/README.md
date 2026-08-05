@@ -104,7 +104,8 @@ await UniversalPrinterFlutter.discoverStar();     // Star [Android]
 await UniversalPrinterFlutter.discoverSnmp();     // Bixolon/Citizen/Brother/Seiko [Android]
 await UniversalPrinterFlutter.discoverZebra();    // Zebra [Android]
 await UniversalPrinterFlutter.discoverUsb();      // USB [Android]
-await UniversalPrinterFlutter.discoverAll();      // everything, de-duped
+await UniversalPrinterFlutter.discoverBuiltIn();  // host device's own Sunmi/iMin printer [Android]
+await UniversalPrinterFlutter.discoverAll();      // everything (incl. built-in), de-duped
 await UniversalPrinterFlutter.ping('192.168.0.50'); // Future<bool> — TCP-9100 reachable?
 ```
 
@@ -113,12 +114,16 @@ Each `DiscoveredPrinter` carries:
 | Field | Notes |
 |---|---|
 | `name`, `brand`, `model` | identity |
-| `connectionType` | `network` / `usb` |
+| `connectionType` | `network` / `usb` / `builtIn` |
 | `ipAddress`, `port` | network printers |
 | `macAddress`, `serialNumber` | when the transport provides them |
 | `vendorId`, `productId`, `usbDeviceName` | USB printers |
+| `isBuiltIn` | `true` for the host device's own Sunmi/iMin printer |
+| `supportedPaperWidthsMm` | e.g. `[58]` / `[80]` — queried live for built-in printers, else empty |
 | `isImpact` | `true` for 9-pin dot-matrix (text-only — no image/QR) |
 | `effectiveEmulation` | command language, defaults to `"ESC/POS"` when unknown |
+
+Filter by type, e.g. `printers.where((p) => p.connectionType == PrinterConnectionType.builtIn)`.
 
 ---
 

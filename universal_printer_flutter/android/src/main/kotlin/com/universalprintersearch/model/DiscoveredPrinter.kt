@@ -1,14 +1,14 @@
 package com.universalprintersearch.model
 
-/** How the printer is reached. */
-enum class PrinterConnectionType { NETWORK, USB }
+/** How the printer is reached: over the LAN, over USB, or the host device's own built-in printer. */
+enum class PrinterConnectionType { NETWORK, USB, BUILT_IN }
 
 /**
  * Identified brand. EPSON (via ENPC / GS I), SUNMI (via mDNS name), ZEBRA (via
  * UDP-4201), and STAR / BIXOLON / CITIZEN / BROTHER / SEIKO (via SNMP sysDescr)
  * are positively identified.
  */
-enum class PrinterBrand { EPSON, SUNMI, SEIKO, STAR, ZEBRA, BIXOLON, CITIZEN, BROTHER, GENERIC, UNKNOWN }
+enum class PrinterBrand { EPSON, SUNMI, IMIN, SEIKO, STAR, ZEBRA, BIXOLON, CITIZEN, BROTHER, GENERIC, UNKNOWN }
 
 /**
  * A printer surfaced by discovery. Fields are populated on a best-effort basis
@@ -32,7 +32,13 @@ data class DiscoveredPrinter(
     val vendorId: Int? = null,
     val productId: Int? = null,
     val usbDeviceName: String? = null,
+    /** Paper widths (mm) the printer supports, e.g. [58] or [58, 80]. Populated for built-in printers
+     *  (queried live from the vendor SDK); empty when unknown. */
+    val supportedPaperWidthsMm: List<Int> = emptyList(),
 ) {
+    /** True for the host device's own **built-in** printer (Sunmi/iMin POS hardware). */
+    val isBuiltIn: Boolean get() = connectionType == PrinterConnectionType.BUILT_IN
+
     /**
      * True for 9-pin **impact / dot-matrix** printers — text-only, no raster image/QR. Detected by
      * model/name token (Epson TM-U*, Star SP700/SP742, Bixolon SRP-27x). Matches the RN package's
