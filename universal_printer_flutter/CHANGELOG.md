@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.3
+
+- `networkPrinter(host, {brand, paperWidthMm})` — the printer object now carries the discovered
+  **brand** and **paper width**, so it knows what it's driving (foundation for brand-aware behaviour).
+- `printerFor(discovered)` auto-fills `brand` + the first `supportedPaperWidthsMm` from discovery.
+
 ## 0.0.2
 
 - **Built-in printer discovery:** `discoverBuiltIn()` detects the host device's own Sunmi/iMin printer

@@ -29,9 +29,14 @@ object UniversalPrinter {
     fun network(
         host: String,
         port: Int = 9100,
+        brand: String? = null,
+        paperWidthMm: Int? = null,
         retryPolicy: RetryPolicy = RetryPolicy.DEFAULT,
         preflightEnabled: Boolean = true,
-    ): Printer = EscPosNetworkPrinter(host, port, retryPolicy = retryPolicy, preflightEnabled = preflightEnabled)
+    ): Printer = EscPosNetworkPrinter(
+        host, port, brand = brand, paperWidthMm = paperWidthMm,
+        retryPolicy = retryPolicy, preflightEnabled = preflightEnabled,
+    )
 
     /**
      * Sunmi **Cloud Printer** (NT211/NT212 58mm, NT310/NT311 80mm) over LAN. This is a standalone
@@ -43,7 +48,7 @@ object UniversalPrinter {
         port: Int = 9100,
         retryPolicy: RetryPolicy = RetryPolicy.DEFAULT,
         preflightEnabled: Boolean = true,
-    ): Printer = network(host, port, retryPolicy, preflightEnabled)
+    ): Printer = network(host, port, retryPolicy = retryPolicy, preflightEnabled = preflightEnabled)
 
     /** USB ESC/POS printer. Requests runtime USB permission on first print. */
     fun usb(context: Context, device: UsbDevice): Printer = EscPosUsbPrinter(context.applicationContext, device)

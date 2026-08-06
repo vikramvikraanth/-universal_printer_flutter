@@ -6,10 +6,14 @@ import Network
 final class NetworkPrinter {
     let host: String
     let port: Int
+    let brand: String?         // discovered brand, e.g. "EPSON"
+    let paperWidthMm: Int?     // physical paper width (mm)
 
-    init(host: String, port: Int) {
+    init(host: String, port: Int, brand: String? = nil, paperWidthMm: Int? = nil) {
         self.host = host
         self.port = port
+        self.brand = brand
+        self.paperWidthMm = paperWidthMm
     }
 
     func send(_ data: Data, connectTimeout: TimeInterval = 5.0, completion: @escaping (_ reason: String?) -> Void) {

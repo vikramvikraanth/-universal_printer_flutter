@@ -58,9 +58,11 @@ class UniversalPrinterFlutter {
 
   // ---- Printer factories (return a native-backed [Printer] handle) ----
 
-  /// Network/TCP ESC/POS printer (raw-print port, default 9100).
-  static Future<Printer> networkPrinter(String host, {int port = 9100}) =>
-      _create({'kind': 'network', 'host': host, 'port': port});
+  /// Network/TCP ESC/POS printer (raw-print port, default 9100). Optionally carry the discovered
+  /// [brand] and [paperWidthMm] (mm) so the printer object knows what it's driving.
+  static Future<Printer> networkPrinter(String host,
+          {int port = 9100, PrinterBrand? brand, int? paperWidthMm}) =>
+      _create({'kind': 'network', 'host': host, 'port': port, 'brand': brand?.wire, 'paperWidthMm': paperWidthMm});
 
   /// Sunmi Cloud Printer over LAN (alias for [networkPrinter]).
   static Future<Printer> sunmiCloudPrinter(String host, {int port = 9100}) =>
@@ -87,7 +89,13 @@ class UniversalPrinterFlutter {
     if (p.connectionType == PrinterConnectionType.usb) {
       return usbPrinter(vendorId: p.vendorId ?? 0, productId: p.productId ?? 0);
     }
-    return networkPrinter(p.ipAddress ?? '', port: p.port);
+    // Carry the discovered brand + first supported paper width into the printer.
+    return networkPrinter(
+      p.ipAddress ?? '',
+      port: p.port,
+      brand: p.brand,
+      paperWidthMm: p.supportedPaperWidthsMm.isNotEmpty ? p.supportedPaperWidthsMm.first : null,
+    );
   }
 
   static Future<Printer> _create(Map<String, Object?> args) async {

@@ -135,12 +135,14 @@ class UniversalPrinterFlutterPlugin :
         val identifier = call.argument<String>("identifier").orEmpty()
         val vid = call.argument<Int>("vendorId")
         val pid = call.argument<Int>("productId")
+        val brand = call.argument<String>("brand")
+        val paperWidthMm = call.argument<Int>("paperWidthMm")
 
         scope.launch {
             val printer = try {
                 withContext(Dispatchers.IO) {
                     when (kind) {
-                        "network", "sunmiCloud" -> UniversalPrinter.network(host, port)
+                        "network", "sunmiCloud" -> UniversalPrinter.network(host, port, brand = brand, paperWidthMm = paperWidthMm)
                         "star" -> UniversalPrinter.star(ctx(), identifier)
                         "sunmi" -> UniversalPrinter.sunmi(ctx())
                         "imin" -> UniversalPrinter.imin(ctx())

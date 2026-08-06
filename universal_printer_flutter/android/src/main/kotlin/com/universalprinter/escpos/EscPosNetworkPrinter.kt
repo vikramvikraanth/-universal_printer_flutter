@@ -54,11 +54,15 @@ class EscPosNetworkPrinter(
     private val statusReadTimeoutMs: Int = 1_500,
     private val minWriteDrainMs: Long = 60,
     private val maxWriteDrainMs: Long = 2_500,
+    /** Discovered brand (e.g. "EPSON") — carried on the printer for brand-aware behaviour/diagnostics. */
+    val brand: String? = null,
+    /** Physical paper width in mm (58/72/80) from discovery; available for rendering/validation. */
+    val paperWidthMm: Int? = null,
     preflightEnabled: Boolean = true,
     private val dispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : QueuedPrinter(dispatcher, preflightEnabled = preflightEnabled), StatusQueryable {
 
-    override val name: String = "ESC/POS $host:$port"
+    override val name: String = (brand?.let { "$it " } ?: "") + "ESC/POS $host:$port"
 
     /** Pre-flight via a live `DLE EOT` query; unreachable/unsupported printers proceed (best-effort). */
     override suspend fun preflight(document: PrintDocument): PreflightResult = Preflight.escPos(queryStatus())

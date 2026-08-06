@@ -56,10 +56,12 @@ public class UniversalPrinterFlutterPlugin: NSObject, FlutterPlugin {
         case "network", "sunmiCloud":
             let host = (args["host"] as? String) ?? ""
             let port = intArg(args["port"], 9100)
+            let brand = args["brand"] as? String
+            let paperWidthMm = args["paperWidthMm"] as? Int
             lock.lock()
             seq += 1
             let handle = "p\(seq)"
-            printers[handle] = NetworkPrinter(host: host, port: port)
+            printers[handle] = NetworkPrinter(host: host, port: port, brand: brand, paperWidthMm: paperWidthMm)
             lock.unlock()
             reply(result, handle)
         default:
