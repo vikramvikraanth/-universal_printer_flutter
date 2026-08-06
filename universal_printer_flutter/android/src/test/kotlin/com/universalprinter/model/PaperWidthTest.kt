@@ -11,7 +11,7 @@ class PaperWidthTest {
         assertEquals(32, PaperWidth.MM_58.charsPerLine)
         assertEquals(576, PaperWidth.MM_80.widthPx)
         assertEquals(48, PaperWidth.MM_80.charsPerLine)
-        assertEquals(576, PaperWidth.MM_72.widthPx)
+        assertEquals(512, PaperWidth.MM_72.widthPx) // 72mm − 8mm = 64mm printable · 64×8 = 512 dots
     }
 
     @Test

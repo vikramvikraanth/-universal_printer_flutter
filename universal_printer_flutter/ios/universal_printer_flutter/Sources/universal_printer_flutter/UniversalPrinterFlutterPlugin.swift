@@ -83,7 +83,12 @@ public class UniversalPrinterFlutterPlugin: NSObject, FlutterPlugin {
         }
         // Encode off the main thread (buildDocument may synchronously fetch URL images).
         DispatchQueue.global().async {
-            let data = EscPos.encode(Bridge.buildDocument(docMap))
+            var doc = Bridge.buildDocument(docMap)
+            // If the printer knows its paper width, re-paginate to it (you can't print wider than the paper).
+            if let mm = printer.paperWidthMm {
+                doc = ReceiptDocument(paper: PaperWidth.ofMillimeters(mm), cut: doc.cut, elements: doc.elements)
+            }
+            let data = EscPos.encode(doc)
             printer.send(data) { reason in
                 if let reason = reason {
                     self.reply(result, Bridge.errorResult(reason, "print failed"))

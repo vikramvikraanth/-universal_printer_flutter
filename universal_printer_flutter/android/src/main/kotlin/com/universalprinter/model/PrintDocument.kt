@@ -101,3 +101,8 @@ fun PrintDocument.textOnly(): PrintDocument {
     }
     return PrintDocument(stripped, paper, cut, openDrawer, renderMode, charset)
 }
+
+/** A copy re-paginated to [paper] — used when the printer's own paper width drives the render width. */
+fun PrintDocument.withPaper(paper: PaperWidth): PrintDocument =
+    if (paper == this.paper) this
+    else PrintDocument(elements, paper, cut, openDrawer, renderMode, charset)

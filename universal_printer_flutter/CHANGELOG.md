@@ -5,6 +5,10 @@
 - `networkPrinter(host, {brand, paperWidthMm})` — the printer object now carries the discovered
   **brand** and **paper width**, so it knows what it's driving (foundation for brand-aware behaviour).
 - `printerFor(discovered)` auto-fills `brand` + the first `supportedPaperWidthsMm` from discovery.
+- **Printer paper drives the render width:** when a printer knows its paper width, `printReceipt`
+  re-paginates the document to it — HTML, bitmap, and text all render at the printer's real print width.
+- **Calibration fix:** `PaperWidth.MM_72` corrected to 64mm printable / 512px (72mm − 8mm margin);
+  was mistakenly 576px (same as 80mm). MM_58 = 48mm/384px, MM_80 = 72mm/576px unchanged.
 
 ## 0.0.2
 

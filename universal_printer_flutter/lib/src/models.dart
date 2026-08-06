@@ -105,7 +105,7 @@ enum PrintType {
 /// Paper width profiles (mirror Kotlin `PaperWidth`; [widthPx]/[charsPerLine] duplicated for UI display).
 enum PaperWidth {
   mm58('MM_58', 384, 32),
-  mm72('MM_72', 576, 42),
+  mm72('MM_72', 512, 42),
   mm80('MM_80', 576, 48),
 
   /// 3-inch impact / dot-matrix (Epson TM-U220 class). Text-only.

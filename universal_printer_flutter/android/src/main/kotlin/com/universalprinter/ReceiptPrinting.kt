@@ -6,9 +6,11 @@ import com.universalprinter.html.ReceiptHtmlRenderer
 import com.universalprinter.html.ReceiptImages
 import com.universalprinter.image.ImageCache
 import com.universalprinter.image.ImageResolver
+import com.universalprinter.model.PaperWidth
 import com.universalprinter.model.PrintDocument
 import com.universalprinter.model.PrintResult
 import com.universalprinter.model.PrintType
+import com.universalprinter.model.withPaper
 
 /**
  * Renders [document] to a self-contained HTML string (embedded logo images + real, scannable
@@ -35,8 +37,11 @@ suspend fun Printer.printReceipt(
     document: PrintDocument,
     type: PrintType = PrintType.TEXT,
 ): PrintResult {
+    // If the printer knows its physical paper width (from discovery), re-paginate to it so the HTML/
+    // bitmap/text render at the printer's real print width — you can't print wider than the paper.
+    val sized = paperWidthMm?.let { document.withPaper(PaperWidth.ofMillimeters(it)) } ?: document
     // Resolve URL images to cached bitmaps once, up front — both print types then work offline.
-    val resolved = ImageResolver.resolve(document) { ImageCache.load(context, it) }
+    val resolved = ImageResolver.resolve(sized) { ImageCache.load(context, it) }
     return routePrint(type, resolved, ::print) { doc ->
         val html = renderReceiptHtml(context, doc) // doc already resolved → the inner resolve is a no-op fast path
         val bitmap = HtmlReceiptRasterizer(context).toBitmap(html, doc.paper.widthPx)

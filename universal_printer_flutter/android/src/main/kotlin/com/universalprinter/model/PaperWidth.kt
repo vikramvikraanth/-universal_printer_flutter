@@ -12,9 +12,9 @@ enum class PaperWidth(
     /** Max columns per row for this width (excess cells are clamped): 58→3, 72→4, 80→5. */
     val maxColumns: Int,
 ) {
-    MM_58(48f, 384, 32, 3),
-    MM_72(72f, 576, 42, 4),
-    MM_80(72f, 576, 48, 5),
+    MM_58(48f, 384, 32, 3),   // 58mm − 10mm = 48mm printable · 48×8 = 384 dots
+    MM_72(64f, 512, 42, 4),   // 72mm − 8mm  = 64mm printable · 64×8 = 512 dots
+    MM_80(72f, 576, 48, 5),   // 80mm − 8mm  = 72mm printable · 72×8 = 576 dots
 
     /** 3-inch **impact / dot-matrix** (Epson TM-U220 class, 9-pin): ~63mm printable, 33 chars Font A.
      *  Text-only — impact printers can't raster (no image/QR). `widthPx` is nominal (images not used). */

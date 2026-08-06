@@ -56,8 +56,8 @@ class EscPosNetworkPrinter(
     private val maxWriteDrainMs: Long = 2_500,
     /** Discovered brand (e.g. "EPSON") — carried on the printer for brand-aware behaviour/diagnostics. */
     val brand: String? = null,
-    /** Physical paper width in mm (58/72/80) from discovery; available for rendering/validation. */
-    val paperWidthMm: Int? = null,
+    /** Physical paper width in mm (58/72/80) from discovery; drives the render width via [printReceipt]. */
+    override val paperWidthMm: Int? = null,
     preflightEnabled: Boolean = true,
     private val dispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : QueuedPrinter(dispatcher, preflightEnabled = preflightEnabled), StatusQueryable {

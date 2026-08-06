@@ -6,11 +6,14 @@ import Foundation
 enum PaperWidth: String {
     case mm58 = "MM_58", mm72 = "MM_72", mm80 = "MM_80", impact76 = "IMPACT_76"
 
-    var widthPx: Int { switch self { case .mm58: return 384; case .mm72, .mm80: return 576; case .impact76: return 200 } }
+    var widthPx: Int { switch self { case .mm58: return 384; case .mm72: return 512; case .mm80: return 576; case .impact76: return 200 } }
     var charsPerLine: Int { switch self { case .mm58: return 32; case .mm72: return 42; case .mm80: return 48; case .impact76: return 33 } }
     var maxColumns: Int { switch self { case .mm58: return 3; case .mm72: return 4; case .mm80: return 5; case .impact76: return 2 } }
 
     static func from(_ s: String?) -> PaperWidth { PaperWidth(rawValue: (s ?? "").uppercased()) ?? .mm80 }
+    static func ofMillimeters(_ mm: Int) -> PaperWidth {
+        switch mm { case 58: return .mm58; case 72: return .mm72; case 80: return .mm80; default: return .mm80 }
+    }
 }
 
 enum TextAlign: String {

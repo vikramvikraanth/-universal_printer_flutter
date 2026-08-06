@@ -15,6 +15,10 @@ import kotlinx.coroutines.SupervisorJob
 interface Printer {
     val name: String
 
+    /** Physical paper width (mm) if the printer knows it (e.g. from discovery). When set, it drives the
+     *  render width — `printReceipt` re-paginates the document to this paper. Null = use the document's paper. */
+    val paperWidthMm: Int? get() = null
+
     /** Establish/verify the connection. Returns false if the printer can't be reached. */
     suspend fun connect(): Boolean
 
