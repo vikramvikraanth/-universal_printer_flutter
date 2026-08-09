@@ -1,0 +1,19 @@
+name: Publish to pub.dev
+
+# Fires when the bump workflow pushes a vX.Y.Z tag. Publishes the package using pub.dev's official
+# OIDC-based automated publishing (no stored tokens/secrets). Requires a one-time setup on pub.dev:
+#   pub.dev -> package -> Admin -> Automated publishing -> Enable publishing from GitHub Actions,
+#   repository = vikramvikraanth/-universal_printer_flutter, tag pattern = v{{version}}.
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+
+jobs:
+  publish:
+    permissions:
+      id-token: write   # required for pub.dev OIDC authentication
+    uses: dart-lang/setup-dart/.github/workflows/publish.yml@v1
+    with:
+      working-directory: universal_printer_flutter
