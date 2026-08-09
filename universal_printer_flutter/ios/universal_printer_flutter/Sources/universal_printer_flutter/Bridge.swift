@@ -59,10 +59,15 @@ enum Bridge {
     }
 
     static func successResult(_ warnings: [String] = []) -> [String: Any] {
-        ["status": "success", "warnings": warnings]
+        ["status": "success", "warnings": warnings,
+         "warningMessages": warnings.map { PrinterMessages.warningMessage($0) }]
     }
-    static func errorResult(_ reason: String, _ message: String?) -> [String: Any] {
-        ["status": "error", "reason": reason, "message": message ?? ""]
+    /// [reason] is a PrintErrorReason wire value; [details] is the technical string (logged, not shown).
+    static func errorResult(_ reason: String, _ details: String?) -> [String: Any] {
+        ["status": "error", "reason": reason,
+         "userMessage": PrinterMessages.userMessage(reason), // safe to show the operator
+         "details": details ?? "",
+         "message": details ?? ""]                            // back-compat (== details)
     }
 
     // MARK: value helpers (NSNull-safe)

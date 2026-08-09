@@ -65,11 +65,39 @@ void main() {
       expect(r.warnings, [PrinterWarning.paperNearEnd]);
     });
 
-    test('error carries reason + message', () {
+    test('error carries reason + back-compat message (from details)', () {
       final r = PrintResult.fromMap({'status': 'error', 'reason': 'NOT_CONNECTED', 'message': 'refused'});
       expect(r.isSuccess, isFalse);
       expect(r.reason, PrintErrorReason.notConnected);
-      expect(r.message, 'refused');
+      expect(r.message, 'refused'); // message aliases details
+    });
+
+    test('actionable error exposes friendly userMessage + technical details', () {
+      final r = PrintResult.fromMap({
+        'status': 'error',
+        'reason': 'PAPER_OUT',
+        'userMessage': 'The printer is out of paper. Load paper and try again.',
+        'details': 'out of paper',
+      });
+      expect(r.userMessage, contains('out of paper'));
+      expect(r.displayMessage, r.userMessage);
+      expect(r.details, 'out of paper');
+    });
+
+    test('displayMessage falls back to generic when no userMessage', () {
+      final r = PrintResult.fromMap({'status': 'error', 'reason': 'IO', 'details': 'Broken pipe'});
+      expect(r.userMessage, isNull);
+      expect(r.displayMessage, contains('Printing failed'));
+      expect(r.details, 'Broken pipe'); // technical detail still available to the app
+    });
+
+    test('success carries friendly warning messages', () {
+      final r = PrintResult.fromMap({
+        'status': 'success',
+        'warnings': ['PAPER_NEAR_END'],
+        'warningMessages': ['Paper is running low — please replace the roll soon.'],
+      });
+      expect(r.warningMessages.single, contains('running low'));
     });
   });
 

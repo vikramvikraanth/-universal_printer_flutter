@@ -7,6 +7,7 @@ import com.universalprinter.model.Column
 import com.universalprinter.model.CutType
 import com.universalprinter.model.PaperWidth
 import com.universalprinter.model.PrintDocument
+import com.universalprinter.model.PrinterMessages
 import com.universalprinter.model.PrintResult
 import com.universalprinter.model.PrintType
 import com.universalprinter.model.QrErrorLevel
@@ -48,8 +49,18 @@ internal object Bridge {
     // ---- Print result output ----
 
     fun resultToMap(r: PrintResult): Map<String, Any?> = when (r) {
-        is PrintResult.Success -> mapOf("status" to "success", "warnings" to r.warnings.map { it.name })
-        is PrintResult.Error -> mapOf("status" to "error", "reason" to r.reason.name, "message" to r.message)
+        is PrintResult.Success -> mapOf(
+            "status" to "success",
+            "warnings" to r.warnings.map { it.name },
+            "warningMessages" to r.warnings.map { PrinterMessages.warningMessage(it) },
+        )
+        is PrintResult.Error -> mapOf(
+            "status" to "error",
+            "reason" to r.reason.name,
+            "userMessage" to PrinterMessages.userMessage(r.reason), // always safe to show the operator
+            "details" to r.message,                                 // technical detail — for logging/support
+            "message" to r.message,                                 // back-compat (== details)
+        )
     }
 
     // ---- PrintDocument input (Dart JSON -> Kotlin) ----

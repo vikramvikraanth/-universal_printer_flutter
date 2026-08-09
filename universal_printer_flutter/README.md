@@ -87,7 +87,7 @@ final printer = await UniversalPrinterFlutter.networkPrinter(printers.first.ipAd
 final result  = await printer.printDocument(doc);          // PrintType.text by default
 await printer.close();
 
-print(result.isSuccess ? 'printed ✓' : 'failed: ${result.reason} — ${result.message}');
+print(result.isSuccess ? 'printed ✓' : result.displayMessage);
 ```
 
 ---
@@ -213,14 +213,32 @@ final r1 = await printer.printDocument(doc);
 // or: full-fidelity image (renders HTML → bitmap, then prints one raster) — Android
 final r2 = await printer.printDocument(doc, type: PrintType.image);
 
-switch (r1.isSuccess) {
-  case true:  print('ok ${r1.warnings}');                 // e.g. [PrinterWarning.paperNearEnd]
-  case false: print('${r1.reason}: ${r1.message}');       // e.g. notConnected / paperOut / coverOpen
+if (r1.isSuccess) {
+  // warningMessages are friendly and ready to show, e.g. "Paper is running low…"
+  for (final w in r1.warningMessages) showBanner(w);
+} else {
+  showDialog(r1.displayMessage);        // always safe to show the operator
+  log('print failed: ${r1.reason} — ${r1.details}');  // technical, for logs/support
 }
 ```
 
-`PrintResult` → `isSuccess`, `warnings` (`List<PrinterWarning>`), and on failure `reason`
-(`PrintErrorReason`) + `message`.
+### Error messages
+
+On failure `PrintResult` gives you three things:
+
+| Field | Use |
+|---|---|
+| `reason` (`PrintErrorReason`) | branch/route in code, or map to your own localized copy |
+| `userMessage` / `displayMessage` | **show this to the operator** — clear & actionable; `displayMessage` falls back to a generic message when none is provided |
+| `details` (alias `message`) | **technical** — log it, send to support; never show to end users |
+
+Actionable faults get a specific message; internal/technical failures get a generic
+*"Printing failed. Please try again…"* while `details` still carries the raw cause.
+
+```dart
+// { reason: PAPER_OUT, userMessage: "The printer is out of paper. Load paper and try again.", details: "out of paper" }
+// { reason: IO,        userMessage: null → displayMessage = "Printing failed…",               details: "Broken pipe" }
+```
 
 ### HTML preview
 

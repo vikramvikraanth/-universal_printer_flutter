@@ -216,36 +216,63 @@ class DiscoveredPrinter {
       'emu=$effectiveEmulation)';
 }
 
+/// Generic fallback message when the native side sends no [PrintResult.userMessage].
+const String _kGenericPrintError =
+    'Printing failed. Please try again. If the problem continues, contact support.';
+
 /// Outcome of a print job (mirrors Kotlin `PrintResult`).
+///
+/// On failure: show [userMessage] to the operator (always safe, actionable for known faults, generic
+/// otherwise) and log [details] + [reason]. Never surface [details] to end users — it's technical.
 class PrintResult {
-  const PrintResult.success({this.warnings = const []})
+  const PrintResult.success({this.warnings = const [], this.warningMessages = const []})
       : isSuccess = true,
         reason = null,
-        message = null;
+        userMessage = null,
+        details = null;
 
-  const PrintResult.error({required this.reason, this.message})
+  const PrintResult.error({required this.reason, this.userMessage, this.details})
       : isSuccess = false,
-        warnings = const [];
+        warnings = const [],
+        warningMessages = const [];
 
   final bool isSuccess;
   final List<PrinterWarning> warnings;
+
+  /// Friendly, ready-to-show messages for each [warnings] entry (e.g. "Paper is running low…").
+  final List<String> warningMessages;
+
   final PrintErrorReason? reason;
-  final String? message;
+
+  /// A clear, user-facing message — safe to show as-is. Specific for actionable faults (paper/cover/
+  /// cutter/connection/permission), generic for internal/technical failures.
+  final String? userMessage;
+
+  /// Technical detail (exception text / native message) — for logging & support, not for end users.
+  final String? details;
+
+  /// Back-compat alias for [details].
+  String? get message => details;
+
+  /// The message to display — [userMessage] if present, else the generic fallback.
+  String get displayMessage => userMessage ?? _kGenericPrintError;
 
   factory PrintResult.fromMap(Map<dynamic, dynamic> m) {
     if ((m['status'] as String?) == 'success') {
       final w = (m['warnings'] as List?)?.map((e) => PrinterWarning.fromWire(e as String?)).toList() ?? const [];
-      return PrintResult.success(warnings: w);
+      final wm = (m['warningMessages'] as List?)?.map((e) => e as String).toList() ?? const <String>[];
+      return PrintResult.success(warnings: w, warningMessages: wm);
     }
     return PrintResult.error(
       reason: PrintErrorReason.fromWire(m['reason'] as String?),
-      message: m['message'] as String?,
+      userMessage: m['userMessage'] as String?,
+      details: (m['details'] ?? m['message']) as String?,
     );
   }
 
   @override
   String toString() =>
-      isSuccess ? 'Success(warnings=$warnings)' : 'Error($reason: $message)';
+      isSuccess ? 'Success(warnings=$warnings)' : 'Error($reason: $displayMessage | details=$details)';
 }
 
 /// A weighted, aligned cell in a multi-column row.

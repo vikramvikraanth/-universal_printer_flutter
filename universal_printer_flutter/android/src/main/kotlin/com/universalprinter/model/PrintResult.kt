@@ -55,3 +55,33 @@ enum class PrinterWarning {
     /** Paper is near the end of the roll — printing continued; alert the operator to reload soon. */
     PAPER_NEAR_END,
 }
+
+/**
+ * Maps a [PrintErrorReason]/[PrinterWarning] to a clear, **user-facing** message the app can show as-is.
+ * Actionable faults (paper/cover/cutter/connection/permission) get a specific instruction; internal or
+ * technical failures (content/unsupported/io/unknown) get the [GENERIC] message — the app should still
+ * log the accompanying technical `details` from [PrintResult.Error.message]. Pure, unit-testable.
+ */
+object PrinterMessages {
+
+    /** Shown when the failure isn't something the operator can directly act on. */
+    const val GENERIC = "Printing failed. Please try again. If the problem continues, contact support."
+
+    fun userMessage(reason: PrintErrorReason): String = when (reason) {
+        PrintErrorReason.PAPER_OUT -> "The printer is out of paper. Load paper and try again."
+        PrintErrorReason.COVER_OPEN -> "The printer cover is open. Close it and try again."
+        PrintErrorReason.CUTTER_ERROR -> "The paper cutter is jammed. Clear the jam and try again."
+        PrintErrorReason.NOT_CONNECTED -> "Can't reach the printer. Check it's powered on and connected."
+        PrintErrorReason.TIMEOUT -> "The printer isn't responding. Please try again."
+        PrintErrorReason.PERMISSION_DENIED -> "Permission to use the printer was denied. Grant access and try again."
+        // Technical / internal — not user-understandable → generic (details still sent to the app).
+        PrintErrorReason.CONTENT_INVALID,
+        PrintErrorReason.UNSUPPORTED,
+        PrintErrorReason.IO,
+        PrintErrorReason.UNKNOWN -> GENERIC
+    }
+
+    fun warningMessage(warning: PrinterWarning): String = when (warning) {
+        PrinterWarning.PAPER_NEAR_END -> "Paper is running low — please replace the roll soon."
+    }
+}

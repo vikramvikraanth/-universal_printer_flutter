@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.0.4
+
+- **User-friendly error messages.** `PrintResult` now returns `userMessage`/`displayMessage` (safe to
+  show the operator) alongside `details` (technical, for logging). Actionable faults (paper/cover/
+  cutter/connection/permission) get a specific instruction; internal/technical failures get a generic
+  message while `details` still carries the raw cause.
+- Success warnings now include friendly `warningMessages` (e.g. "Paper is running low…").
+- `message` is retained as a back-compat alias for `details`.
+
 ## 0.0.3
 
 - `networkPrinter(host, {brand, paperWidthMm})` — the printer object now carries the discovered
