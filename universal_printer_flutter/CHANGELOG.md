@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.5
+
+- TODO: describe this release.
+
+
 ## 0.0.4
 
 - **User-friendly error messages.** `PrintResult` now returns `userMessage`/`displayMessage` (safe to
