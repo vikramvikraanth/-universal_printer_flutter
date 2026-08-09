@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.7
+
+- Maintenance release.
+
 ## 0.0.6
 
 - **Discovery now reports print capability.** Each `DiscoveredPrinter` carries `supportedPrintTypes`
