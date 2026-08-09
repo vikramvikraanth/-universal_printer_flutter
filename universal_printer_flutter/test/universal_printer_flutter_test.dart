@@ -45,6 +45,29 @@ void main() {
       expect(p.supportedPaperWidthsMm, [58]);
     });
 
+    test('generic printer reports both TEXT and IMAGE support', () {
+      final p = DiscoveredPrinter.fromMap({
+        'name': 'Network Printer',
+        'connectionType': 'NETWORK',
+        'brand': 'GENERIC',
+        'supportedPrintTypes': ['TEXT', 'IMAGE'],
+        'supportsImage': true,
+      });
+      expect(p.supportedPrintTypes, [PrintType.text, PrintType.image]);
+      expect(p.supportsImage, isTrue);
+    });
+
+    test('impact printer reports TEXT only (fallback from isImpact when field absent)', () {
+      final p = DiscoveredPrinter.fromMap({
+        'name': 'TM-U220',
+        'connectionType': 'NETWORK',
+        'model': 'TM-U220',
+        'isImpact': true,
+      });
+      expect(p.supportedPrintTypes, [PrintType.text]);
+      expect(p.supportsImage, isFalse);
+    });
+
     test('parses the iMin brand and 80mm paper', () {
       final p = DiscoveredPrinter.fromMap({
         'name': 'iMin Swift',

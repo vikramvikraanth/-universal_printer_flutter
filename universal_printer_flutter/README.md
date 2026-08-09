@@ -120,6 +120,7 @@ Each `DiscoveredPrinter` carries:
 | `vendorId`, `productId`, `usbDeviceName` | USB printers |
 | `isBuiltIn` | `true` for the host device's own Sunmi/iMin printer |
 | `supportedPaperWidthsMm` | e.g. `[58]` / `[80]` — queried live for built-in printers, else empty |
+| `supportedPrintTypes` / `supportsImage` | `[text, image]` for generic/thermal, `[text]` for impact — whether it can print images + text or text only |
 | `isImpact` | `true` for 9-pin dot-matrix (text-only — no image/QR) |
 | `effectiveEmulation` | command language, defaults to `"ESC/POS"` when unknown |
 

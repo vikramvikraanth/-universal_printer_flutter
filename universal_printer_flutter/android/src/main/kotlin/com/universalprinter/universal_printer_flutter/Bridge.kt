@@ -41,6 +41,8 @@ internal object Bridge {
         "isImpact" to p.isImpact,
         "isBuiltIn" to p.isBuiltIn,
         "supportedPaperWidthsMm" to p.supportedPaperWidthsMm,
+        "supportedPrintTypes" to p.supportedPrintTypes,
+        "supportsImage" to p.supportsImage,
         "effectiveEmulation" to p.effectiveEmulation,
     )
 

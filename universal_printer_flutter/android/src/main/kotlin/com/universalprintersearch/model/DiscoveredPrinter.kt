@@ -40,6 +40,17 @@ data class DiscoveredPrinter(
     val isBuiltIn: Boolean get() = connectionType == PrinterConnectionType.BUILT_IN
 
     /**
+     * Print modes this printer supports. Text is universal; **image** (full-receipt bitmap / raster
+     * logo / QR / barcode) works on every printer **except 9-pin impact** printers, which are text-only.
+     * So a generic/thermal printer reports `["TEXT", "IMAGE"]`; an impact printer reports `["TEXT"]`.
+     */
+    val supportedPrintTypes: List<String>
+        get() = if (isImpact) listOf("TEXT") else listOf("TEXT", "IMAGE")
+
+    /** Convenience: true unless this is an impact (text-only) printer. */
+    val supportsImage: Boolean get() = !isImpact
+
+    /**
      * True for 9-pin **impact / dot-matrix** printers — text-only, no raster image/QR. Detected by
      * model/name token (Epson TM-U*, Star SP700/SP742, Bixolon SRP-27x). Matches the RN package's
      * `TM-U` rule; extend [IMPACT_MODEL_TOKENS] as needed.

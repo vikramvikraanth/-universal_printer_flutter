@@ -162,6 +162,7 @@ class DiscoveredPrinter {
     this.usbDeviceName,
     this.isImpact = false,
     this.supportedPaperWidthsMm = const [],
+    this.supportedPrintTypes = const [PrintType.text, PrintType.image],
     this.effectiveEmulation = 'ESC/POS',
   });
 
@@ -185,11 +186,17 @@ class DiscoveredPrinter {
   /// printers (queried live from the vendor SDK); empty when unknown.
   final List<int> supportedPaperWidthsMm;
 
+  /// Print modes this printer supports. Generic/thermal → `[text, image]`; impact (9-pin) → `[text]`.
+  final List<PrintType> supportedPrintTypes;
+
   /// [emulation] if known, else the ESC/POS default.
   final String effectiveEmulation;
 
   /// True for the host device's own built-in printer (Sunmi/iMin POS hardware).
   bool get isBuiltIn => connectionType == PrinterConnectionType.builtIn;
+
+  /// True unless this is an impact (text-only) printer — i.e. it can print full-receipt images/QR.
+  bool get supportsImage => supportedPrintTypes.contains(PrintType.image);
 
   factory DiscoveredPrinter.fromMap(Map<dynamic, dynamic> m) => DiscoveredPrinter(
         name: m['name'] as String? ?? 'Printer',
@@ -207,6 +214,11 @@ class DiscoveredPrinter {
         isImpact: m['isImpact'] as bool? ?? false,
         supportedPaperWidthsMm:
             (m['supportedPaperWidthsMm'] as List?)?.map((e) => (e as num).toInt()).toList() ?? const [],
+        supportedPrintTypes: (m['supportedPrintTypes'] as List?)
+                ?.map((e) => (e as String).toUpperCase() == 'IMAGE' ? PrintType.image : PrintType.text)
+                .toList() ??
+            // Fallback: impact printers are text-only; everything else supports both.
+            ((m['isImpact'] as bool? ?? false) ? const [PrintType.text] : const [PrintType.text, PrintType.image]),
         effectiveEmulation: m['effectiveEmulation'] as String? ?? 'ESC/POS',
       );
 

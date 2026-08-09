@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.6
+
+- **Discovery now reports print capability.** Each `DiscoveredPrinter` carries `supportedPrintTypes`
+  (`[text, image]` for generic/thermal printers, `[text]` for 9-pin impact) plus a `supportsImage`
+  convenience getter — so the search result tells you whether a printer can do image + text or text only.
+
 ## 0.0.5
 
 - Maintenance release — no functional changes since 0.0.4 (release automation added in-repo).

@@ -78,6 +78,9 @@ struct DiscoveredPrinter {
         return DiscoveredPrinter.impactTokens.contains { id.contains($0) }
     }
     var isBuiltIn: Bool { connectionType == "BUILT_IN" }
+    // Text is universal; image works on everything except 9-pin impact printers.
+    var supportedPrintTypes: [String] { isImpact ? ["TEXT"] : ["TEXT", "IMAGE"] }
+    var supportsImage: Bool { !isImpact }
     var effectiveEmulation: String { emulation ?? "ESC/POS" }
 
     func toMap() -> [String: Any] {
@@ -88,7 +91,9 @@ struct DiscoveredPrinter {
             "macAddress": v(macAddress), "serialNumber": v(serialNumber), "brand": brand, "model": v(model),
             "emulation": v(emulation), "vendorId": v(vendorId), "productId": v(productId),
             "usbDeviceName": v(usbDeviceName), "isImpact": isImpact, "isBuiltIn": isBuiltIn,
-            "supportedPaperWidthsMm": supportedPaperWidthsMm, "effectiveEmulation": effectiveEmulation,
+            "supportedPaperWidthsMm": supportedPaperWidthsMm,
+            "supportedPrintTypes": supportedPrintTypes, "supportsImage": supportsImage,
+            "effectiveEmulation": effectiveEmulation,
         ]
     }
 }
