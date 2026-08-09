@@ -2,7 +2,7 @@
 
 ## 0.0.5
 
-- TODO: describe this release.
+- Maintenance release — no functional changes since 0.0.4 (release automation added in-repo).
 
 
 ## 0.0.4
