@@ -59,15 +59,21 @@ jobs:
           git commit -m "chore: bump version to ${{ steps.v.outputs.new }}"
           git push origin "${{ steps.v.outputs.branch }}"
 
-      - name: Open PR to main
+      - name: Open PR to main (falls back to a compare link)
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh pr create \
-            --base main \
-            --head "${{ steps.v.outputs.branch }}" \
-            --title "Release v${{ steps.v.outputs.new }}" \
-            --body "Automated version bump to **${{ steps.v.outputs.new }}** (${{ inputs.level }}).
+          body="Automated version bump to **${{ steps.v.outputs.new }}** (${{ inputs.level }}).
 
           - [ ] Fill in the CHANGELOG entry
           - [ ] Merge, then push tag \`v${{ steps.v.outputs.new }}\` to publish (or run \`flutter pub publish\`)."
+          if gh pr create --base main --head "${{ steps.v.outputs.branch }}" \
+               --title "Release v${{ steps.v.outputs.new }}" --body "$body"; then
+            echo "PR opened."
+          else
+            # GitHub blocks Actions from opening PRs unless the repo setting is enabled. The branch is
+            # already pushed, so just surface the one-click compare link instead of failing.
+            url="https://github.com/${{ github.repository }}/compare/main...${{ steps.v.outputs.branch }}?expand=1"
+            echo "::notice title=Open the release PR manually::$url"
+            echo "Could not auto-create the PR (Actions PR creation is disabled). Open it here: $url"
+          fi
