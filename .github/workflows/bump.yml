@@ -1,0 +1,73 @@
+name: Bump version (manual)
+
+# Manual release prep. Click "Run workflow", pick the bump level, and it:
+#   1. creates a release branch  release/vX.Y.Z
+#   2. bumps `version:` in universal_printer_flutter/pubspec.yaml + prepends a CHANGELOG entry
+#   3. pushes the branch and opens a PR to main
+# Nothing touches main or publishes automatically — you review + merge the PR. Publishing happens only
+# when you push the vX.Y.Z tag (see publish.yml), which stays a deliberate manual step.
+
+on:
+  workflow_dispatch:
+    inputs:
+      level:
+        description: 'Version bump level'
+        type: choice
+        default: patch
+        options: [patch, minor, major]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: universal_printer_flutter
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Compute new version
+        id: v
+        run: |
+          current=$(grep '^version:' pubspec.yaml | awk '{print $2}')
+          IFS='.' read -r MA MI PA <<< "$current"
+          case "${{ inputs.level }}" in
+            major) MA=$((MA+1)); MI=0; PA=0 ;;
+            minor) MI=$((MI+1)); PA=0 ;;
+            patch) PA=$((PA+1)) ;;
+          esac
+          new="$MA.$MI.$PA"
+          echo "new=$new" >> "$GITHUB_OUTPUT"
+          echo "branch=release/v$new" >> "$GITHUB_OUTPUT"
+          echo "Bumping $current -> $new (${{ inputs.level }})"
+
+      - name: Apply bump on a release branch
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b "${{ steps.v.outputs.branch }}"
+          sed -i "s/^version: .*/version: ${{ steps.v.outputs.new }}/" pubspec.yaml
+          { printf '# Changelog\n\n## %s\n\n- TODO: describe this release.\n\n' "${{ steps.v.outputs.new }}"; tail -n +2 CHANGELOG.md; } > CHANGELOG.tmp
+          mv CHANGELOG.tmp CHANGELOG.md
+          git add pubspec.yaml CHANGELOG.md
+          git commit -m "chore: bump version to ${{ steps.v.outputs.new }}"
+          git push origin "${{ steps.v.outputs.branch }}"
+
+      - name: Open PR to main
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh pr create \
+            --base main \
+            --head "${{ steps.v.outputs.branch }}" \
+            --title "Release v${{ steps.v.outputs.new }}" \
+            --body "Automated version bump to **${{ steps.v.outputs.new }}** (${{ inputs.level }}).
+
+          - [ ] Fill in the CHANGELOG entry
+          - [ ] Merge, then push tag \`v${{ steps.v.outputs.new }}\` to publish (or run \`flutter pub publish\`)."
