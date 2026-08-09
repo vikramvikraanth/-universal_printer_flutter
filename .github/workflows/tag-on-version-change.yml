@@ -1,0 +1,49 @@
+name: Tag on version change
+
+# When universal_printer_flutter/pubspec.yaml changes on main and its `version:` has no matching
+# vX.Y.Z tag yet, create + push that tag. The tag then triggers publish.yml (which publishes to
+# pub.dev via OIDC). Net effect: commit a version bump to main -> auto-tag -> auto-publish.
+#
+# IMPORTANT: a tag pushed by the default GITHUB_TOKEN does NOT trigger other workflows (GitHub
+# anti-recursion). So publish.yml only fires if this tag is pushed with a Personal Access Token.
+# Add a repo secret RELEASE_PAT (a fine-grained PAT with Contents: read/write on this repo).
+# Without it, the tag is still created, but you must run publish manually (a warning is emitted).
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'universal_printer_flutter/pubspec.yaml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tag-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.RELEASE_PAT || github.token }}
+
+      - name: Create + push tag if the version is new
+        run: |
+          v=$(grep '^version:' universal_printer_flutter/pubspec.yaml | awk '{print $2}')
+          tag="v$v"
+          if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+            echo "Tag $tag already exists — nothing to do."
+            exit 0
+          fi
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "$tag"
+          git push origin "$tag"
+          echo "Created and pushed $tag"
+          if [ -z "${{ secrets.RELEASE_PAT }}" ]; then
+            echo "::warning title=Publish will NOT auto-run::Tag $tag was pushed with GITHUB_TOKEN, which cannot trigger publish.yml. Add a RELEASE_PAT secret, or publish manually: cd universal_printer_flutter && flutter pub publish"
+          fi
