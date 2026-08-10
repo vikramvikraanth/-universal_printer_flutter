@@ -63,6 +63,21 @@ class PreflightTest {
         assertTrue(Preflight.sunmi(8) is PreflightResult.Proceed) // cutter normal
     }
 
+    @Test
+    fun iminCodesMapToReasons() {
+        assertEquals(PrintErrorReason.PAPER_OUT, blockReason(Preflight.imin(7)))
+        assertEquals(PrintErrorReason.COVER_OPEN, blockReason(Preflight.imin(3)))
+        assertEquals(PrintErrorReason.UNKNOWN, blockReason(Preflight.imin(4)))   // overheat
+        assertEquals(PrintErrorReason.UNKNOWN, blockReason(Preflight.imin(99)))  // other error
+        assertEquals(PrintErrorReason.NOT_CONNECTED, blockReason(Preflight.imin(-1)))
+        assertEquals(PrintErrorReason.NOT_CONNECTED, blockReason(Preflight.imin(1)))
+        assertTrue(Preflight.imin(0) is PreflightResult.Proceed)  // normal
+        // paper-low (8) proceeds WITH a near-end warning
+        val low = Preflight.imin(8)
+        assertTrue(low is PreflightResult.Proceed && low.warnings.contains(PrinterWarning.PAPER_NEAR_END))
+        assertTrue(Preflight.imin(42) is PreflightResult.Proceed) // unknown code -> proceed
+    }
+
     // ---- Star ----
 
     @Test

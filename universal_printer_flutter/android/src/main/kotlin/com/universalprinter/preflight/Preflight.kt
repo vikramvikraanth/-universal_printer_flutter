@@ -42,6 +42,23 @@ internal object Preflight {
         else -> PreflightResult.Proceed()
     }
 
+    /**
+     * iMin `getPrinterStatus()` code (iMin built-in SDK). Codes per the official iMin printer docs:
+     * 0 normal; -1/1 not connected; 3 head/cover open; 4 overheated; 7 out of paper; 8 paper low
+     * (near-end → warn, don't block); 99 other error. iMin (like Sunmi) reports success on a fault,
+     * so this preflight is what actually blocks. Unknown codes proceed (don't block what we can't read).
+     */
+    fun imin(status: Int): PreflightResult = when (status) {
+        0 -> PreflightResult.Proceed()
+        3 -> PreflightResult.Block(PrintErrorReason.COVER_OPEN, "printer cover open")
+        4 -> PreflightResult.Block(PrintErrorReason.UNKNOWN, "printer overheating — let it cool and retry")
+        7 -> PreflightResult.Block(PrintErrorReason.PAPER_OUT, "out of paper")
+        8 -> NEAR_END
+        99 -> PreflightResult.Block(PrintErrorReason.UNKNOWN, "printer error")
+        -1, 1 -> PreflightResult.Block(PrintErrorReason.NOT_CONNECTED, "printer not connected")
+        else -> PreflightResult.Proceed()
+    }
+
     /** Star `StarPrinterStatus` fields (+ `detail.cutterError`). */
     fun star(
         coverOpen: Boolean,

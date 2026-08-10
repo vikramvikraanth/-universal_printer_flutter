@@ -3,8 +3,13 @@ package com.universalprinter.imin
 import android.content.Context
 import com.imin.printer.PrinterHelper
 import com.universalprinter.QueuedPrinter
+import com.universalprinter.StatusQueryable
+import com.universalprinter.model.PaperState
+import com.universalprinter.model.PreflightResult
 import com.universalprinter.model.PrintDocument
 import com.universalprinter.model.PrintResult
+import com.universalprinter.model.PrinterStatus
+import com.universalprinter.preflight.Preflight
 import com.universalprinter.util.Bitmaps
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -17,7 +22,7 @@ import kotlinx.coroutines.Dispatchers
 class IminPrinterBackend(
     context: Context,
     dispatcher: CoroutineDispatcher = Dispatchers.IO,
-) : QueuedPrinter(dispatcher) {
+) : QueuedPrinter(dispatcher), StatusQueryable {
 
     private val appContext = context.applicationContext
     private val helper = PrinterHelper.getInstance()
@@ -26,6 +31,35 @@ class IminPrinterBackend(
 
     override suspend fun doConnect(): Boolean =
         runCatching { helper.initPrinterService(appContext) }.getOrDefault(false)
+
+    /**
+     * iMin (like Sunmi) reports print success even when out of paper / cover open, so gate every job
+     * on a live status read. The status code is read reflectively (the SDK method signature varies by
+     * version) — if it can't be read, proceed rather than block a printer we can't query.
+     */
+    override suspend fun preflight(document: PrintDocument): PreflightResult {
+        runCatching { helper.initPrinterService(appContext) }
+        val code = readStatusCode() ?: return PreflightResult.Proceed()
+        return Preflight.imin(code)
+    }
+
+    /** On-demand status (for the app's getStatus). Maps the iMin code to the common [PrinterStatus]. */
+    override suspend fun queryStatus(): PrinterStatus? {
+        runCatching { helper.initPrinterService(appContext) }
+        val code = readStatusCode() ?: return null
+        return PrinterStatus(
+            online = code != -1 && code != 1,
+            coverOpen = code == 3,
+            error = code == 4 || code == 99,
+            autoCutterError = false,
+            paper = if (code == 7) PaperState.NOT_PRESENT else if (code == 8) PaperState.NEAR_END else PaperState.OK,
+        )
+    }
+
+    /** Read iMin's integer status via reflection; null if the method/signature isn't available. */
+    private fun readStatusCode(): Int? = runCatching {
+        (helper.javaClass.getMethod("getPrinterStatus").invoke(helper) as? Number)?.toInt()
+    }.getOrNull()
 
     override suspend fun doPrint(document: PrintDocument): PrintResult {
         return try {

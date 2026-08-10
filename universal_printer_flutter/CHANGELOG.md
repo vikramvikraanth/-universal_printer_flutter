@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.0.10
+
+- **iMin built-in printer now checks status before printing.** Previously it printed "blind"
+  (iMin reports success even when out of paper / cover open). Added a preflight status read + the
+  standard fault blocking (out-of-paper / cover-open / overheat / not-connected), plus on-demand
+  `status()` support. Codes per the official iMin SDK docs; read reflectively for SDK-version safety.
+
+
 ## 0.0.9
 
 - **Fix Sunmi status gaps** (verified against the reference RN package): states 5 (overheating) and
