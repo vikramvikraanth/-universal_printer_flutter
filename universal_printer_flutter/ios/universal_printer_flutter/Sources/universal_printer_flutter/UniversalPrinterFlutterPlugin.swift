@@ -39,6 +39,15 @@ public class UniversalPrinterFlutterPlugin: NSObject, FlutterPlugin {
             createPrinter(args, result)
         case "printDocument":
             printDocument(args, result)
+        case "getStatus":
+            guard let handle = args["handle"] as? String else {
+                reply(result, ["supported": false]); return
+            }
+            lock.lock(); let printer = printers[handle]; lock.unlock()
+            guard let printer = printer else {
+                reply(result, FlutterError(code: "NO_PRINTER", message: "no printer for handle \(handle)", details: nil)); return
+            }
+            printer.queryStatus { map in self.reply(result, map) }
         case "closePrinter":
             if let h = args["handle"] as? String { lock.lock(); printers[h] = nil; lock.unlock() }
             reply(result, nil)

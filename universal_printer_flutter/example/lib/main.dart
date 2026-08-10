@@ -157,7 +157,14 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
               SizedBox(height: 260, child: _HtmlPreview(html: _previewHtml!)),
             Expanded(
               child: ListView(
-                children: _printers.map((p) => _PrinterCard(printer: p, canPrint: !_loading, onTest: _testDiscovered)).toList(),
+                children: _printers
+                    .map((p) => _PrinterCard(
+                          printer: p,
+                          canPrint: !_loading,
+                          onTest: _testDiscovered,
+                          onStatus: _checkStatus,
+                        ))
+                    .toList(),
               ),
             ),
           ],
@@ -174,6 +181,33 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
     _printTo('Test $ip', effType, () => UniversalPrinterFlutter.networkPrinter(ip, port: p.port));
   }
 
+  Future<void> _checkStatus(DiscoveredPrinter p) async {
+    final ip = p.ipAddress;
+    if (ip == null || _loading) return;
+    setState(() {
+      _loading = true;
+      _status = 'Reading status ($ip)…';
+    });
+    Printer? printer;
+    try {
+      printer = await UniversalPrinterFlutter.networkPrinter(ip, port: p.port);
+      final s = await printer.status();
+      final msg = !s.supported
+          ? '$ip: status not supported on this backend'
+          : !s.answered
+              ? "$ip: printer didn't respond (busy or offline)"
+              : '$ip: ${s.ready ? "READY ✓" : "NOT READY"} · '
+                  'paper=${s.paper.name}${s.coverOpen ? " · cover open" : ""}'
+                  '${s.autoCutterError ? " · cutter error" : ""}${s.error ? " · error" : ""}';
+      setState(() => _status = msg);
+    } catch (e) {
+      setState(() => _status = '$ip status error: $e');
+    } finally {
+      await printer?.close();
+      setState(() => _loading = false);
+    }
+  }
+
   Widget _btn(String label, VoidCallback onTap) => Padding(
         padding: const EdgeInsets.only(right: 8),
         child: ElevatedButton(onPressed: _loading ? null : onTap, child: Text(label)),
@@ -181,10 +215,16 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
 }
 
 class _PrinterCard extends StatelessWidget {
-  const _PrinterCard({required this.printer, required this.canPrint, required this.onTest});
+  const _PrinterCard({
+    required this.printer,
+    required this.canPrint,
+    required this.onTest,
+    required this.onStatus,
+  });
   final DiscoveredPrinter printer;
   final bool canPrint;
   final void Function(DiscoveredPrinter, PrintType) onTest;
+  final void Function(DiscoveredPrinter) onStatus;
 
   @override
   Widget build(BuildContext context) {
@@ -209,15 +249,18 @@ class _PrinterCard extends StatelessWidget {
             if (printer.ipAddress != null)
               Padding(
                 padding: const EdgeInsets.only(top: 6),
-                child: Row(children: [
+                child: Wrap(spacing: 8, runSpacing: 4, children: [
                   ElevatedButton(
                     onPressed: canPrint ? () => onTest(printer, PrintType.text) : null,
                     child: const Text('Test TEXT'),
                   ),
-                  const SizedBox(width: 8),
                   ElevatedButton(
                     onPressed: canPrint ? () => onTest(printer, PrintType.image) : null,
                     child: const Text('Test IMAGE'),
+                  ),
+                  OutlinedButton(
+                    onPressed: canPrint ? () => onStatus(printer) : null,
+                    child: const Text('Check status'),
                   ),
                 ]),
               ),

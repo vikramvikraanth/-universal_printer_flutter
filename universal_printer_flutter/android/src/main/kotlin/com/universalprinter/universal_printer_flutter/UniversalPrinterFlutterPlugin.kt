@@ -4,6 +4,7 @@ import android.app.Activity
 import android.content.Context
 import android.hardware.usb.UsbManager
 import com.universalprinter.Printer
+import com.universalprinter.StatusQueryable
 import com.universalprinter.UniversalPrinter
 import com.universalprinter.builtin.BuiltInPrinterDiscovery
 import com.universalprinter.model.PrintType
@@ -104,6 +105,7 @@ class UniversalPrinterFlutterPlugin :
             // ---- Printing ----
             "createPrinter" -> createPrinter(call, result)
             "printDocument" -> printDocument(call, result)
+            "getStatus" -> getStatus(call, result)
             "receiptHtml" -> receiptHtml(call, result)
             "closePrinter" -> {
                 val printer = printers.remove(call.argument<String>("handle").orEmpty())
@@ -162,6 +164,21 @@ class UniversalPrinterFlutterPlugin :
             val handle = "p${handleSeq.incrementAndGet()}"
             printers[handle] = printer
             result.success(handle)
+        }
+    }
+
+    /** Live hardware status for a handle. `{supported:false}` if the backend can't read status; the
+     *  fields are null when the printer didn't answer the query. */
+    private fun getStatus(call: MethodCall, result: Result) {
+        val handle = call.argument<String>("handle").orEmpty()
+        val printer = printers[handle]
+            ?: return result.error("NO_PRINTER", "No printer for handle $handle", null)
+        val queryable = printer as? StatusQueryable
+            ?: return result.success(mapOf("supported" to false))
+        scope.launch {
+            runCatching { withContext(Dispatchers.IO) { queryable.queryStatus() } }
+                .onSuccess { result.success(Bridge.statusToMap(it)) }
+                .onFailure { result.error("STATUS", it.message, null) }
         }
     }
 

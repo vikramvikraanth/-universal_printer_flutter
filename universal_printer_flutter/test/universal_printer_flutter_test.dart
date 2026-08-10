@@ -154,6 +154,36 @@ void main() {
     });
   });
 
+  group('PrinterStatus.fromMap', () {
+    test('parses a ready printer', () {
+      final s = PrinterStatus.fromMap({
+        'supported': true, 'answered': true, 'online': true, 'coverOpen': false,
+        'error': false, 'autoCutterError': false, 'paper': 'OK', 'ready': true,
+      });
+      expect(s.supported, isTrue);
+      expect(s.ready, isTrue);
+      expect(s.paper, PaperState.ok);
+    });
+
+    test('maps paper states and fault flags', () {
+      final s = PrinterStatus.fromMap({
+        'supported': true, 'answered': true, 'online': true, 'coverOpen': true,
+        'autoCutterError': true, 'paper': 'NOT_PRESENT', 'ready': false,
+      });
+      expect(s.paper, PaperState.notPresent);
+      expect(s.coverOpen, isTrue);
+      expect(s.autoCutterError, isTrue);
+      expect(s.ready, isFalse);
+    });
+
+    test('unsupported / no-answer backends', () {
+      expect(PrinterStatus.fromMap({'supported': false}).supported, isFalse);
+      final noAns = PrinterStatus.fromMap({'supported': true, 'answered': false});
+      expect(noAns.supported, isTrue);
+      expect(noAns.answered, isFalse);
+    });
+  });
+
   test('PaperWidth display fields mirror the Kotlin profiles', () {
     expect(PaperWidth.mm80.charsPerLine, 48);
     expect(PaperWidth.impact76.wire, 'IMPACT_76');

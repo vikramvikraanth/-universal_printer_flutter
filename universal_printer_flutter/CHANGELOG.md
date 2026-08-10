@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.0.8
+
+- **Read printer status on demand.** New `Printer.status()` returns a `PrinterStatus`
+  (online / coverOpen / error / autoCutterError / paper / ready) for network ESC/POS printers;
+  unsupported backends (USB, iMin) report `supported: false`. Sample app gains a **Check status** button.
+
+
 ## 0.0.7
 
 - Maintenance release.

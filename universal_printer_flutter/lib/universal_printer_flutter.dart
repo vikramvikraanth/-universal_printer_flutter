@@ -6,7 +6,7 @@ import 'src/models.dart';
 import 'src/printer.dart';
 
 export 'src/models.dart';
-export 'src/printer.dart' show Printer;
+export 'src/printer.dart' show Printer, PrinterStatus, PaperState;
 
 /// Flutter API for the Universal Printer SDK — printer **discovery** (Epson/Sunmi/Zebra/Star/SNMP/
 /// generic-network/USB) and **printing** (ESC/POS network/USB, Star, Sunmi/iMin built-in), backed by

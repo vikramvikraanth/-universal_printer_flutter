@@ -241,6 +241,26 @@ Actionable faults get a specific message; internal/technical failures get a gene
 // { reason: IO,        userMessage: null → displayMessage = "Printing failed…",               details: "Broken pipe" }
 ```
 
+### Read printer status
+
+Query live hardware state before printing (network ESC/POS; Sunmi/Star map too — USB/iMin report unsupported):
+
+```dart
+final s = await printer.status();
+if (!s.supported) {
+  // this backend can't report status (USB / iMin)
+} else if (!s.answered) {
+  // printer busy or offline — didn't respond
+} else if (s.ready) {
+  // good to print
+} else {
+  // s.paper (ok/nearEnd/notPresent), s.coverOpen, s.autoCutterError, s.error
+}
+```
+
+`PrinterStatus` → `supported`, `answered`, `online`, `coverOpen`, `error`, `autoCutterError`,
+`paper` (`PaperState`), `ready`. ESC/POS status needs an **idle** printer (port 9100 accepts ~one connection).
+
 ### HTML preview
 
 Get the same layout the `image` path prints, as an HTML string for a `WebView` preview:

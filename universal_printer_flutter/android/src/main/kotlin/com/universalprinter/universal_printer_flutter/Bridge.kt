@@ -48,6 +48,22 @@ internal object Bridge {
 
     fun printersToList(list: List<DiscoveredPrinter>): List<Map<String, Any?>> = list.map(::printerToMap)
 
+    // ---- Live status output ----
+
+    /** [status] is null when the printer didn't answer the query (unreachable / unsupported command). */
+    fun statusToMap(status: com.universalprinter.model.PrinterStatus?): Map<String, Any?> =
+        if (status == null) mapOf("supported" to true, "answered" to false)
+        else mapOf(
+            "supported" to true,
+            "answered" to true,
+            "online" to status.online,
+            "coverOpen" to status.coverOpen,
+            "error" to status.error,
+            "autoCutterError" to status.autoCutterError,
+            "paper" to status.paper.name, // OK / NEAR_END / NOT_PRESENT
+            "ready" to status.ready,
+        )
+
     // ---- Print result output ----
 
     fun resultToMap(r: PrintResult): Map<String, Any?> = when (r) {
