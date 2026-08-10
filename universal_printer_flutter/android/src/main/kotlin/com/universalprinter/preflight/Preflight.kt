@@ -26,12 +26,19 @@ internal object Preflight {
         else -> PreflightResult.Proceed()
     }
 
-    /** Sunmi `updatePrinterState()` code (near-end has no code on this API, so it's never warned here). */
+    /**
+     * Sunmi `updatePrinterState()` code. Full code set (from the Sunmi SDK diagnostics):
+     * 1 running, 2 initializing, 8 cutter-normal → healthy; 3 hardware abnormal, 4 out of paper,
+     * 5 overheating, 6 cover open, 7 cutter abnormal, 9 no black-mark paper, 505 not connected.
+     * Sunmi's print calls succeed silently on a fault, so this preflight is what actually blocks.
+     */
     fun sunmi(state: Int): PreflightResult = when (state) {
-        4 -> PreflightResult.Block(PrintErrorReason.PAPER_OUT, "out of paper")
+        4, 9 -> PreflightResult.Block(PrintErrorReason.PAPER_OUT, "out of paper")
         6 -> PreflightResult.Block(PrintErrorReason.COVER_OPEN, "cover open")
         7 -> PreflightResult.Block(PrintErrorReason.CUTTER_ERROR, "cutter error")
-        3, 505 -> PreflightResult.Block(PrintErrorReason.NOT_CONNECTED, "printer not connected")
+        5 -> PreflightResult.Block(PrintErrorReason.UNKNOWN, "printer overheating — let it cool and retry")
+        3 -> PreflightResult.Block(PrintErrorReason.UNKNOWN, "printer hardware error")
+        505 -> PreflightResult.Block(PrintErrorReason.NOT_CONNECTED, "printer not connected")
         else -> PreflightResult.Proceed()
     }
 

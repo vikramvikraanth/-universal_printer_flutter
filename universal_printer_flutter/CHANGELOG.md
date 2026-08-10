@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.0.9
+
+- **Fix Sunmi status gaps** (verified against the reference RN package): states 5 (overheating) and
+  9 (no black-mark paper) previously fell through and **printed despite the fault** — now blocked.
+  State 3 (hardware abnormal) re-labelled from NOT_CONNECTED to a hardware error; 505 stays NOT_CONNECTED.
+
+
 ## 0.0.8
 
 - **Read printer status on demand.** New `Printer.status()` returns a `PrinterStatus`

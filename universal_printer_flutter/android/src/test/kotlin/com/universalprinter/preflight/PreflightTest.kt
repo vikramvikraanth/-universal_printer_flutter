@@ -49,11 +49,18 @@ class PreflightTest {
     @Test
     fun sunmiCodesMapToReasons() {
         assertEquals(PrintErrorReason.PAPER_OUT, blockReason(Preflight.sunmi(4)))
+        assertEquals(PrintErrorReason.PAPER_OUT, blockReason(Preflight.sunmi(9)))  // no black-mark paper
         assertEquals(PrintErrorReason.COVER_OPEN, blockReason(Preflight.sunmi(6)))
         assertEquals(PrintErrorReason.CUTTER_ERROR, blockReason(Preflight.sunmi(7)))
-        assertEquals(PrintErrorReason.NOT_CONNECTED, blockReason(Preflight.sunmi(3)))
+        assertEquals(PrintErrorReason.UNKNOWN, blockReason(Preflight.sunmi(5)))    // overheating
+        assertEquals(PrintErrorReason.UNKNOWN, blockReason(Preflight.sunmi(3)))    // hardware abnormal
         assertEquals(PrintErrorReason.NOT_CONNECTED, blockReason(Preflight.sunmi(505)))
-        assertTrue(Preflight.sunmi(1) is PreflightResult.Proceed) // normal
+        // states 5 and 9 must NOT silently proceed (the bug this fixes)
+        assertTrue(Preflight.sunmi(5) is PreflightResult.Block)
+        assertTrue(Preflight.sunmi(9) is PreflightResult.Block)
+        assertTrue(Preflight.sunmi(1) is PreflightResult.Proceed) // running
+        assertTrue(Preflight.sunmi(2) is PreflightResult.Proceed) // initializing
+        assertTrue(Preflight.sunmi(8) is PreflightResult.Proceed) // cutter normal
     }
 
     // ---- Star ----
