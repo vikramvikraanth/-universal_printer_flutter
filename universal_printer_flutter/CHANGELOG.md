@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.0.11
+
+- **iOS Star printing + `receiptHtml`.** New Star backend (StarXpand / StarIO10), receipt-HTML
+  rendering, and a shared `PrinterBackend` protocol on iOS. Star is a hard CocoaPods dependency
+  (`StarIO10`), mirroring Android.
+- **Impact (9-pin) printers print text-only by default** across Android/iOS/Dart — images are dropped
+  and barcodes/QR render as their data string; impact re-paginates to the 33-char `IMPACT_76` paper.
+- **Smoother network printing.** The pre-print `DLE EOT` status check is now adaptive: printers that
+  don't support real-time status are detected (after 2 consecutive silent probes) and skipped on later
+  jobs, with periodic re-probe to recover; status read timeout cut to 500ms. Capable printers keep
+  fault-blocking.
+- **Better error messages.** Overheating on Sunmi/iMin and unreachable Star now map to actionable
+  reasons (`OVERHEATED` / `NOT_CONNECTED`) instead of the generic message.
+- **Fixes:** discovered Star printers now route to the Star backend (were printing as raw ESC/POS);
+  `PrintType.IMAGE` on an impact printer no longer prints blank; iOS EAN-13 barcode symbology;
+  Epson ENPC Phase-2 model fetch hardened; `paperWidthMm` carried into Star; Star status detail read
+  compile-checked; USB status no longer probes a non-printer interface.
+
 ## 0.0.10
 
 - **iMin built-in printer now checks status before printing.** Previously it printed "blind"

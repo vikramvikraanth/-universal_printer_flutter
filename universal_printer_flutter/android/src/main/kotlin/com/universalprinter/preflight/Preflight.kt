@@ -15,6 +15,16 @@ internal object Preflight {
 
     private val NEAR_END = PreflightResult.Proceed(listOf(PrinterWarning.PAPER_NEAR_END))
 
+    /** Outcome of a network `DLE EOT` status probe. Consumed by [PreflightGate]. */
+    sealed interface StatusProbe {
+        /** The printer answered — its real-time status. */
+        data class Answered(val status: PrinterStatus) : StatusProbe
+        /** Reachable, but it never answered `DLE EOT` — it doesn't implement real-time status. */
+        data object Silent : StatusProbe
+        /** Couldn't connect (down/transient) — distinct from [Silent] so we don't give up on a capable printer. */
+        data object Unreachable : StatusProbe
+    }
+
     /** ESC/POS via `DLE EOT`. Null = status unknown/unsupported → proceed (don't block clones that don't answer). */
     fun escPos(status: PrinterStatus?): PreflightResult = when {
         status == null -> PreflightResult.Proceed()
@@ -36,7 +46,7 @@ internal object Preflight {
         4, 9 -> PreflightResult.Block(PrintErrorReason.PAPER_OUT, "out of paper")
         6 -> PreflightResult.Block(PrintErrorReason.COVER_OPEN, "cover open")
         7 -> PreflightResult.Block(PrintErrorReason.CUTTER_ERROR, "cutter error")
-        5 -> PreflightResult.Block(PrintErrorReason.UNKNOWN, "printer overheating — let it cool and retry")
+        5 -> PreflightResult.Block(PrintErrorReason.OVERHEATED, "printer overheating")
         3 -> PreflightResult.Block(PrintErrorReason.UNKNOWN, "printer hardware error")
         505 -> PreflightResult.Block(PrintErrorReason.NOT_CONNECTED, "printer not connected")
         else -> PreflightResult.Proceed()
@@ -51,7 +61,7 @@ internal object Preflight {
     fun imin(status: Int): PreflightResult = when (status) {
         0 -> PreflightResult.Proceed()
         3 -> PreflightResult.Block(PrintErrorReason.COVER_OPEN, "printer cover open")
-        4 -> PreflightResult.Block(PrintErrorReason.UNKNOWN, "printer overheating — let it cool and retry")
+        4 -> PreflightResult.Block(PrintErrorReason.OVERHEATED, "printer overheating")
         7 -> PreflightResult.Block(PrintErrorReason.PAPER_OUT, "out of paper")
         8 -> NEAR_END
         99 -> PreflightResult.Block(PrintErrorReason.UNKNOWN, "printer error")
@@ -60,18 +70,48 @@ internal object Preflight {
     }
 
     /** Star `StarPrinterStatus` fields (+ `detail.cutterError`). */
-    fun star(
-        coverOpen: Boolean,
-        paperEmpty: Boolean,
-        paperNearEmpty: Boolean,
-        cutterError: Boolean,
-        hasError: Boolean,
-    ): PreflightResult = when {
-        coverOpen -> PreflightResult.Block(PrintErrorReason.COVER_OPEN, "cover open")
-        paperEmpty -> PreflightResult.Block(PrintErrorReason.PAPER_OUT, "out of paper")
-        cutterError -> PreflightResult.Block(PrintErrorReason.CUTTER_ERROR, "auto-cutter error")
-        hasError -> PreflightResult.Block(PrintErrorReason.UNKNOWN, "printer error")
-        paperNearEmpty -> NEAR_END
+    /**
+     * Star `StarPrinterStatus` (+ `.detail`) fields → unified result. Mirrors the reference package's
+     * `throwIfStarReportsFault`, mapped to our reasons. Actionable faults get their own reason (the
+     * UI shows a specific instruction); technical faults collapse to UNKNOWN (generic message) while
+     * the [StarStatus] detail string is carried as the technical `details` for logging.
+     */
+    fun star(s: StarStatus): PreflightResult = when {
+        s.coverOpen -> PreflightResult.Block(PrintErrorReason.COVER_OPEN, "cover open")
+        s.paperEmpty -> PreflightResult.Block(PrintErrorReason.PAPER_OUT, "out of paper")
+        s.paperPresent -> PreflightResult.Block(PrintErrorReason.HOLDING_PAPER, "receipt still at the outlet")
+        s.cutterError -> PreflightResult.Block(PrintErrorReason.CUTTER_ERROR, "auto-cutter error")
+        s.paperJamError -> PreflightResult.Block(PrintErrorReason.PAPER_JAM, "paper jam")
+        s.overTemperature -> PreflightResult.Block(PrintErrorReason.OVERHEATED, "print head over temperature")
+        // technical / not user-fixable → generic printer-error message, real cause in details.
+        // printUnitOpen is intentionally NOT mapped to "cover open" — it's a distinct mechanism state
+        // and the cover-open wording confuses operators; show the generic printer error instead.
+        s.printUnitOpen -> PreflightResult.Block(PrintErrorReason.UNKNOWN, "print unit open")
+        s.voltageError -> PreflightResult.Block(PrintErrorReason.UNKNOWN, "voltage error")
+        s.receiveBufferOverflow -> PreflightResult.Block(PrintErrorReason.UNKNOWN, "receive buffer overflow")
+        s.rollPositionError -> PreflightResult.Block(PrintErrorReason.UNKNOWN, "roll position error")
+        s.paperSeparatorError -> PreflightResult.Block(PrintErrorReason.UNKNOWN, "paper separator error")
+        s.unrecoverableError -> PreflightResult.Block(PrintErrorReason.UNKNOWN, "unrecoverable error")
+        s.hasError -> PreflightResult.Block(PrintErrorReason.UNKNOWN, "printer error")
+        s.paperNearEmpty -> NEAR_END
         else -> PreflightResult.Proceed()
     }
+
+    /** Flattened Star status flags (from `StarPrinterStatus` + its `.detail`). */
+    data class StarStatus(
+        val coverOpen: Boolean = false,
+        val printUnitOpen: Boolean = false,
+        val paperEmpty: Boolean = false,
+        val paperNearEmpty: Boolean = false,
+        val paperPresent: Boolean = false,   // previous receipt held at the outlet
+        val cutterError: Boolean = false,
+        val paperJamError: Boolean = false,
+        val overTemperature: Boolean = false, // printHeadOverTemperature || printHeadThermistorError
+        val voltageError: Boolean = false,
+        val receiveBufferOverflow: Boolean = false,
+        val rollPositionError: Boolean = false,
+        val paperSeparatorError: Boolean = false,
+        val unrecoverableError: Boolean = false,
+        val hasError: Boolean = false,
+    )
 }

@@ -34,6 +34,15 @@ enum class PrintErrorReason {
     /** The auto-cutter reported an error / jam. */
     CUTTER_ERROR,
 
+    /** Paper is jammed in the mechanism. */
+    PAPER_JAM,
+
+    /** The print head / printer is over-temperature. */
+    OVERHEATED,
+
+    /** A previous receipt is still held at the outlet and must be removed before printing. */
+    HOLDING_PAPER,
+
     /** Runtime permission for the device was denied (e.g. USB). */
     PERMISSION_DENIED,
 
@@ -71,6 +80,9 @@ object PrinterMessages {
         PrintErrorReason.PAPER_OUT -> "The printer is out of paper. Load paper and try again."
         PrintErrorReason.COVER_OPEN -> "The printer cover is open. Close it and try again."
         PrintErrorReason.CUTTER_ERROR -> "The paper cutter is jammed. Clear the jam and try again."
+        PrintErrorReason.PAPER_JAM -> "Paper is jammed. Clear the jam and try again."
+        PrintErrorReason.OVERHEATED -> "The printer is overheating. Let it cool for a minute and try again."
+        PrintErrorReason.HOLDING_PAPER -> "Please remove the printed receipt, then try again."
         PrintErrorReason.NOT_CONNECTED -> "Can't reach the printer. Check it's powered on and connected."
         PrintErrorReason.TIMEOUT -> "The printer isn't responding. Please try again."
         PrintErrorReason.PERMISSION_DENIED -> "Permission to use the printer was denied. Grant access and try again."

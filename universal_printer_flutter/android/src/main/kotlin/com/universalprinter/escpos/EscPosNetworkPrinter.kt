@@ -15,6 +15,7 @@ import com.universalprinter.model.PrintResult
 import com.universalprinter.model.PrinterStatus
 import com.universalprinter.model.RetryPolicy
 import com.universalprinter.preflight.Preflight
+import com.universalprinter.preflight.PreflightGate
 import com.universalprinter.util.Bitmaps
 import com.universalprinter.util.retrying
 import kotlinx.coroutines.CoroutineDispatcher
@@ -51,42 +52,67 @@ class EscPosNetworkPrinter(
     private val connectTimeoutMs: Int = 4_000,
     private val writeTimeoutMs: Long = 3_000,
     private val retryPolicy: RetryPolicy = RetryPolicy.DEFAULT,
-    private val statusReadTimeoutMs: Int = 1_500,
+    // The pre-print DLE-EOT preflight runs on every job; a printer that doesn't implement real-time
+    // status blocks here until this timeout. Kept short (500ms) so printing stays smooth — real-time
+    // status replies are immediate, so 500ms is ample for printers that do answer.
+    private val statusReadTimeoutMs: Int = 500,
     private val minWriteDrainMs: Long = 60,
     private val maxWriteDrainMs: Long = 2_500,
     /** Discovered brand (e.g. "EPSON") — carried on the printer for brand-aware behaviour/diagnostics. */
     val brand: String? = null,
     /** Physical paper width in mm (58/72/80) from discovery; drives the render width via [printReceipt]. */
     override val paperWidthMm: Int? = null,
+    /** True for a 9-pin impact model (e.g. Epson TM-U*) — forces text-only (no raster). From discovery. */
+    override val isImpact: Boolean = false,
     preflightEnabled: Boolean = true,
     private val dispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : QueuedPrinter(dispatcher, preflightEnabled = preflightEnabled), StatusQueryable {
 
     override val name: String = (brand?.let { "$it " } ?: "") + "ESC/POS $host:$port"
 
-    /** Pre-flight via a live `DLE EOT` query; unreachable/unsupported printers proceed (best-effort). */
-    override suspend fun preflight(document: PrintDocument): PreflightResult = Preflight.escPos(queryStatus())
+    // Adaptive pre-flight policy (the recurring `DLE EOT` round-trip is what makes printing feel "not
+    // smooth"; the reference package never preflights). The gate owns the skip/re-probe state; this class
+    // just supplies the probe. Serialized by the queue, so no extra synchronization is needed.
+    private val preflightGate = PreflightGate(::probeStatus)
+
+    /** Adaptive pre-flight: `DLE EOT` on capable printers (blocks on paper-out/cover/cutter); skipped for
+     *  printers proven not to answer, so subsequent jobs print straight through (see [PreflightGate]). */
+    override suspend fun preflight(document: PrintDocument): PreflightResult = preflightGate.evaluate()
 
     /**
      * Live status via `DLE EOT` on a short-lived socket (works when the printer is idle — port 9100
-     * refuses a second connection while a job streams). Returns null if the printer is unreachable or
-     * doesn't answer (many low-end models don't implement real-time status).
+     * refuses a second connection while a job streams). Returns null when unreachable or silent — used by
+     * the on-demand `Printer.status()`. The pre-flight path uses [probeStatus] instead, which keeps the
+     * reachable-but-silent vs unreachable distinction.
      */
-    override suspend fun queryStatus(): PrinterStatus? = withContext(dispatcher) {
-        runCatching {
-            Socket().use { socket ->
+    override suspend fun queryStatus(): PrinterStatus? =
+        (probeStatus() as? Preflight.StatusProbe.Answered)?.status
+
+    /** Classify a `DLE EOT` probe: Answered / Silent (reachable, no reply) / Unreachable (connect failed). */
+    private suspend fun probeStatus(): Preflight.StatusProbe = withContext(dispatcher) {
+        val socket = Socket()
+        try {
+            try {
                 socket.connect(InetSocketAddress(host, port), connectTimeoutMs)
-                socket.soTimeout = statusReadTimeoutMs
-                val out = socket.getOutputStream()
-                val inp = socket.getInputStream()
-                val printer = queryByte(out, inp, EscPosStatus.QUERY_PRINTER)
-                val offline = queryByte(out, inp, EscPosStatus.QUERY_OFFLINE)
-                val errorByte = queryByte(out, inp, EscPosStatus.QUERY_ERROR)
-                val paper = queryByte(out, inp, EscPosStatus.QUERY_PAPER)
-                if (printer < 0 || offline < 0 || errorByte < 0 || paper < 0) null
-                else EscPosStatus.parse(printer, offline, errorByte, paper)
+            } catch (_: IOException) {
+                return@withContext Preflight.StatusProbe.Unreachable
             }
-        }.getOrNull()
+            socket.soTimeout = statusReadTimeoutMs
+            val out = socket.getOutputStream()
+            val inp = socket.getInputStream()
+            val printer = queryByte(out, inp, EscPosStatus.QUERY_PRINTER)
+            val offline = queryByte(out, inp, EscPosStatus.QUERY_OFFLINE)
+            val errorByte = queryByte(out, inp, EscPosStatus.QUERY_ERROR)
+            val paper = queryByte(out, inp, EscPosStatus.QUERY_PAPER)
+            // A read that times out throws (caught below); EOF (-1) means the socket closed with no status.
+            if (printer < 0 || offline < 0 || errorByte < 0 || paper < 0) Preflight.StatusProbe.Silent
+            else Preflight.StatusProbe.Answered(EscPosStatus.parse(printer, offline, errorByte, paper))
+        } catch (_: Exception) {
+            // Connected (we got past connect) but the read failed/timed out → the printer is silent.
+            Preflight.StatusProbe.Silent
+        } finally {
+            runCatching { socket.close() }
+        }
     }
 
     private fun queryByte(out: OutputStream, inp: InputStream, cmd: ByteArray): Int {

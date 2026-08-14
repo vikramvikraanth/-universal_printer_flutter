@@ -6,10 +6,13 @@ import com.sunmi.peripheral.printer.InnerPrinterManager
 import com.sunmi.peripheral.printer.SunmiPrinterService
 import com.sunmi.peripheral.printer.WoyouConsts
 import com.universalprinter.QueuedPrinter
+import com.universalprinter.StatusQueryable
+import com.universalprinter.model.PaperState
 import com.universalprinter.model.PreflightResult
 import com.universalprinter.model.PrintDocument
 import com.universalprinter.model.PrintErrorReason
 import com.universalprinter.model.PrintResult
+import com.universalprinter.model.PrinterStatus
 import com.universalprinter.preflight.Preflight
 import com.universalprinter.util.Bitmaps
 import kotlinx.coroutines.CoroutineDispatcher
@@ -24,7 +27,7 @@ class SunmiPrinterBackend(
     context: Context,
     preflightEnabled: Boolean = true,
     dispatcher: CoroutineDispatcher = Dispatchers.IO,
-) : QueuedPrinter(dispatcher, preflightEnabled = preflightEnabled) {
+) : QueuedPrinter(dispatcher, preflightEnabled = preflightEnabled), StatusQueryable {
 
     private val appContext = context.applicationContext
 
@@ -43,6 +46,23 @@ class SunmiPrinterBackend(
         val s = service ?: run { if (!bind()) return PreflightResult.Block(PrintErrorReason.NOT_CONNECTED, "Sunmi printer service unavailable"); service }
             ?: return PreflightResult.Block(PrintErrorReason.NOT_CONNECTED, "Sunmi printer service unavailable")
         return Preflight.sunmi(runCatching { s.updatePrinterState() }.getOrDefault(1))
+    }
+
+    /**
+     * On-demand status (for the app's getStatus). Maps Sunmi's `updatePrinterState()` code to the
+     * common [PrinterStatus]. Returns null if the service can't be bound. (Sunmi's state reporting is
+     * unreliable per model — some always return 1/running — so treat a healthy result cautiously.)
+     */
+    override suspend fun queryStatus(): PrinterStatus? {
+        val s = service ?: run { if (!bind()) return null; service } ?: return null
+        val state = runCatching { s.updatePrinterState() }.getOrNull() ?: return null
+        return PrinterStatus(
+            online = state != 505,
+            coverOpen = state == 6,
+            error = state == 3 || state == 5, // hardware abnormal / overheating
+            autoCutterError = state == 7,
+            paper = if (state == 4 || state == 9) PaperState.NOT_PRESENT else PaperState.OK,
+        )
     }
 
     private suspend fun bind(): Boolean {

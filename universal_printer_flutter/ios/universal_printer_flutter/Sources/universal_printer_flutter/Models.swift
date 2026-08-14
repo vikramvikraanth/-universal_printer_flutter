@@ -53,6 +53,29 @@ struct ReceiptDocument {
     let paper: PaperWidth
     let cut: CutType
     let elements: [ReceiptElement]
+
+    /// Text-only copy for 9-pin **impact / dot-matrix** printers (which can't raster): drops image
+    /// elements and renders barcodes/QR as their data string. Returns self when there are no graphics.
+    /// Mirrors Android's `PrintDocument.textOnly()`.
+    func textOnly() -> ReceiptDocument {
+        let hasGraphics = elements.contains { el in
+            switch el { case .image, .imageUrl, .barcode, .qr: return true; default: return false }
+        }
+        if !hasGraphics { return self }
+        let stripped: [ReceiptElement] = elements.compactMap { el in
+            switch el {
+            case .image, .imageUrl:
+                return nil
+            case let .barcode(data, _, _, align):
+                return .text(data, align: align, bold: false, underline: false, invert: false, size: .normal)
+            case let .qr(data, _, _, align):
+                return .text(data, align: align, bold: false, underline: false, invert: false, size: .normal)
+            default:
+                return el
+            }
+        }
+        return ReceiptDocument(paper: paper, cut: cut, elements: stripped)
+    }
 }
 
 // Discovery result — serialized to the same dict keys Android emits.

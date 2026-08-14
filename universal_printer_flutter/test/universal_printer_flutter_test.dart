@@ -1,10 +1,79 @@
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:universal_printer_flutter/src/channel.dart';
 import 'package:universal_printer_flutter/universal_printer_flutter.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  group('UniversalPrinterFlutter.createArgs (printerFor routing)', () {
+    test('a discovered Star routes to the Star backend (brand wins over connectionType)', () {
+      // Star discovery reports connectionType NETWORK with the connect string in ipAddress; the
+      // Star-brand branch must precede the network branch or it would print raw ESC/POS (garbage).
+      final args = UniversalPrinterFlutter.createArgs(const DiscoveredPrinter(
+        name: 'Star mC-Print3',
+        connectionType: PrinterConnectionType.network,
+        ipAddress: '00:11:62:AA:BB:CC',
+        brand: PrinterBrand.star,
+        isImpact: true,
+      ));
+      expect(args[PrinterChannel.argKind], PrinterChannel.kindStar);
+      expect(args[PrinterChannel.argIdentifier], '00:11:62:AA:BB:CC');
+      expect(args[PrinterChannel.argIsImpact], isTrue);
+    });
+
+    test('a Star identifier falls back to macAddress when ipAddress is absent', () {
+      final args = UniversalPrinterFlutter.createArgs(const DiscoveredPrinter(
+        name: 'Star',
+        connectionType: PrinterConnectionType.network,
+        macAddress: '00:11:62:00:00:01',
+        brand: PrinterBrand.star,
+      ));
+      expect(args[PrinterChannel.argIdentifier], '00:11:62:00:00:01');
+    });
+
+    test('a Star carries the discovered paper width', () {
+      final args = UniversalPrinterFlutter.createArgs(const DiscoveredPrinter(
+        name: 'Star TSP143',
+        connectionType: PrinterConnectionType.network,
+        ipAddress: '00:11:62:AA:BB:CC',
+        brand: PrinterBrand.star,
+        supportedPaperWidthsMm: [80],
+      ));
+      expect(args[PrinterChannel.argPaperWidthMm], 80);
+    });
+
+    test('a USB printer routes to the USB backend carrying isImpact', () {
+      final args = UniversalPrinterFlutter.createArgs(const DiscoveredPrinter(
+        name: 'TM-U220',
+        connectionType: PrinterConnectionType.usb,
+        vendorId: 1208,
+        productId: 3618,
+        brand: PrinterBrand.epson,
+        isImpact: true,
+      ));
+      expect(args[PrinterChannel.argKind], PrinterChannel.kindUsb);
+      expect(args[PrinterChannel.argVendorId], 1208);
+      expect(args[PrinterChannel.argProductId], 3618);
+      expect(args[PrinterChannel.argIsImpact], isTrue);
+    });
+
+    test('a generic impact network printer routes to network with impact + paper width', () {
+      final args = UniversalPrinterFlutter.createArgs(const DiscoveredPrinter(
+        name: 'TM-U220II',
+        connectionType: PrinterConnectionType.network,
+        ipAddress: '192.168.0.50',
+        brand: PrinterBrand.epson,
+        isImpact: true,
+        supportedPaperWidthsMm: [76],
+      ));
+      expect(args[PrinterChannel.argKind], PrinterChannel.kindNetwork);
+      expect(args[PrinterChannel.argHost], '192.168.0.50');
+      expect(args[PrinterChannel.argIsImpact], isTrue);
+      expect(args[PrinterChannel.argPaperWidthMm], 76);
+    });
+  });
 
   group('DiscoveredPrinter.fromMap', () {
     test('parses enums and computed fields, defaults emulation to ESC/POS', () {

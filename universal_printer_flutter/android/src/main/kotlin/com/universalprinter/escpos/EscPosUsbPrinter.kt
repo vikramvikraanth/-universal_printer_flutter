@@ -7,12 +7,17 @@ import com.dantsu.escposprinter.EscPosPrinter
 import com.dantsu.escposprinter.connection.usb.UsbConnection
 import com.dantsu.escposprinter.textparser.PrinterTextParserImg
 import com.universalprinter.QueuedPrinter
+import com.universalprinter.StatusQueryable
 import com.universalprinter.model.CutType
+import com.universalprinter.model.PreflightResult
 import com.universalprinter.model.PrintDocument
 import com.universalprinter.model.PrintErrorReason
 import com.universalprinter.model.PrintResult
+import com.universalprinter.model.PrinterStatus
+import com.universalprinter.preflight.Preflight
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * USB ESC/POS printer, backed by DantSu's [UsbConnection] + [EscPosPrinter]. Requests runtime USB
@@ -22,8 +27,10 @@ import kotlinx.coroutines.Dispatchers
 class EscPosUsbPrinter(
     context: Context,
     private val device: UsbDevice,
-    dispatcher: CoroutineDispatcher = Dispatchers.IO,
-) : QueuedPrinter(dispatcher) {
+    /** True for a 9-pin impact model (e.g. Epson TM-U* over USB) — forces text-only (no raster). */
+    override val isImpact: Boolean = false,
+    private val dispatcher: CoroutineDispatcher = Dispatchers.IO,
+) : QueuedPrinter(dispatcher), StatusQueryable {
 
     private val appContext = context.applicationContext
     private val usbManager = appContext.getSystemService(Context.USB_SERVICE) as UsbManager
@@ -33,6 +40,19 @@ class EscPosUsbPrinter(
 
     override suspend fun doConnect(): Boolean =
         usbManager.hasPermission(device) || permission.ensurePermission(device)
+
+    /**
+     * Pre-flight via a raw-USB `DLE EOT` status read (mirrors the reference package's USB status
+     * manager). Needs USB permission and an idle printer; a printer that doesn't answer proceeds
+     * (best-effort) rather than blocking.
+     */
+    override suspend fun preflight(document: PrintDocument): PreflightResult =
+        Preflight.escPos(queryStatus())
+
+    override suspend fun queryStatus(): PrinterStatus? = withContext(dispatcher) {
+        if (!usbManager.hasPermission(device)) return@withContext null
+        UsbStatusReader(usbManager, device).read()
+    }
 
     override suspend fun doPrint(document: PrintDocument): PrintResult {
         if (!usbManager.hasPermission(device) && !permission.ensurePermission(device)) {

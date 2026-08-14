@@ -139,20 +139,21 @@ class UniversalPrinterFlutterPlugin :
         val pid = call.argument<Int>("productId")
         val brand = call.argument<String>("brand")
         val paperWidthMm = call.argument<Int>("paperWidthMm")
+        val isImpact = call.argument<Boolean>("isImpact") ?: false
 
         scope.launch {
             val printer = try {
                 withContext(Dispatchers.IO) {
                     when (kind) {
-                        "network", "sunmiCloud" -> UniversalPrinter.network(host, port, brand = brand, paperWidthMm = paperWidthMm)
-                        "star" -> UniversalPrinter.star(ctx(), identifier)
+                        "network", "sunmiCloud" -> UniversalPrinter.network(host, port, brand = brand, paperWidthMm = paperWidthMm, isImpact = isImpact)
+                        "star" -> UniversalPrinter.star(ctx(), identifier, isImpact = isImpact, paperWidthMm = paperWidthMm)
                         "sunmi" -> UniversalPrinter.sunmi(ctx())
                         "imin" -> UniversalPrinter.imin(ctx())
                         "usb" -> {
                             val usb = ctx().getSystemService(Context.USB_SERVICE) as UsbManager
                             val device = usb.deviceList.values.firstOrNull { it.vendorId == vid && it.productId == pid }
                                 ?: throw IllegalStateException("No USB device with vendorId=$vid productId=$pid")
-                            UniversalPrinter.usb(ctx(), device)
+                            UniversalPrinter.usb(ctx(), device, isImpact = isImpact)
                         }
                         else -> throw IllegalArgumentException("Unknown printer kind: $kind")
                     }

@@ -52,7 +52,7 @@ class PreflightTest {
         assertEquals(PrintErrorReason.PAPER_OUT, blockReason(Preflight.sunmi(9)))  // no black-mark paper
         assertEquals(PrintErrorReason.COVER_OPEN, blockReason(Preflight.sunmi(6)))
         assertEquals(PrintErrorReason.CUTTER_ERROR, blockReason(Preflight.sunmi(7)))
-        assertEquals(PrintErrorReason.UNKNOWN, blockReason(Preflight.sunmi(5)))    // overheating
+        assertEquals(PrintErrorReason.OVERHEATED, blockReason(Preflight.sunmi(5))) // overheating (actionable)
         assertEquals(PrintErrorReason.UNKNOWN, blockReason(Preflight.sunmi(3)))    // hardware abnormal
         assertEquals(PrintErrorReason.NOT_CONNECTED, blockReason(Preflight.sunmi(505)))
         // states 5 and 9 must NOT silently proceed (the bug this fixes)
@@ -67,7 +67,7 @@ class PreflightTest {
     fun iminCodesMapToReasons() {
         assertEquals(PrintErrorReason.PAPER_OUT, blockReason(Preflight.imin(7)))
         assertEquals(PrintErrorReason.COVER_OPEN, blockReason(Preflight.imin(3)))
-        assertEquals(PrintErrorReason.UNKNOWN, blockReason(Preflight.imin(4)))   // overheat
+        assertEquals(PrintErrorReason.OVERHEATED, blockReason(Preflight.imin(4))) // overheat (actionable)
         assertEquals(PrintErrorReason.UNKNOWN, blockReason(Preflight.imin(99)))  // other error
         assertEquals(PrintErrorReason.NOT_CONNECTED, blockReason(Preflight.imin(-1)))
         assertEquals(PrintErrorReason.NOT_CONNECTED, blockReason(Preflight.imin(1)))
@@ -82,11 +82,22 @@ class PreflightTest {
 
     @Test
     fun starBlocksAndWarnsAppropriately() {
-        assertEquals(PrintErrorReason.COVER_OPEN, blockReason(Preflight.star(coverOpen = true, paperEmpty = false, paperNearEmpty = false, cutterError = false, hasError = false)))
-        assertEquals(PrintErrorReason.PAPER_OUT, blockReason(Preflight.star(false, paperEmpty = true, false, false, false)))
-        assertEquals(PrintErrorReason.CUTTER_ERROR, blockReason(Preflight.star(false, false, false, cutterError = true, hasError = false)))
-        val near = Preflight.star(false, false, paperNearEmpty = true, false, false)
+        // actionable faults -> specific reasons
+        assertEquals(PrintErrorReason.COVER_OPEN, blockReason(Preflight.star(Preflight.StarStatus(coverOpen = true))))
+        // printUnitOpen is a distinct state -> generic printer error, NOT the confusing "cover open"
+        assertEquals(PrintErrorReason.UNKNOWN, blockReason(Preflight.star(Preflight.StarStatus(printUnitOpen = true))))
+        assertEquals(PrintErrorReason.PAPER_OUT, blockReason(Preflight.star(Preflight.StarStatus(paperEmpty = true))))
+        assertEquals(PrintErrorReason.HOLDING_PAPER, blockReason(Preflight.star(Preflight.StarStatus(paperPresent = true))))
+        assertEquals(PrintErrorReason.CUTTER_ERROR, blockReason(Preflight.star(Preflight.StarStatus(cutterError = true))))
+        assertEquals(PrintErrorReason.PAPER_JAM, blockReason(Preflight.star(Preflight.StarStatus(paperJamError = true))))
+        assertEquals(PrintErrorReason.OVERHEATED, blockReason(Preflight.star(Preflight.StarStatus(overTemperature = true))))
+        // technical faults -> UNKNOWN (generic message; cause carried as details)
+        assertEquals(PrintErrorReason.UNKNOWN, blockReason(Preflight.star(Preflight.StarStatus(voltageError = true))))
+        assertEquals(PrintErrorReason.UNKNOWN, blockReason(Preflight.star(Preflight.StarStatus(unrecoverableError = true))))
+        assertEquals(PrintErrorReason.UNKNOWN, blockReason(Preflight.star(Preflight.StarStatus(hasError = true))))
+        // near-empty proceeds with a warning; clean proceeds
+        val near = Preflight.star(Preflight.StarStatus(paperNearEmpty = true))
         assertEquals(listOf(PrinterWarning.PAPER_NEAR_END), (near as PreflightResult.Proceed).warnings)
-        assertTrue(Preflight.star(false, false, false, false, false) is PreflightResult.Proceed)
+        assertTrue(Preflight.star(Preflight.StarStatus()) is PreflightResult.Proceed)
     }
 }

@@ -31,10 +31,11 @@ object UniversalPrinter {
         port: Int = 9100,
         brand: String? = null,
         paperWidthMm: Int? = null,
+        isImpact: Boolean = false,
         retryPolicy: RetryPolicy = RetryPolicy.DEFAULT,
         preflightEnabled: Boolean = true,
     ): Printer = EscPosNetworkPrinter(
-        host, port, brand = brand, paperWidthMm = paperWidthMm,
+        host, port, brand = brand, paperWidthMm = paperWidthMm, isImpact = isImpact,
         retryPolicy = retryPolicy, preflightEnabled = preflightEnabled,
     )
 
@@ -50,12 +51,21 @@ object UniversalPrinter {
         preflightEnabled: Boolean = true,
     ): Printer = network(host, port, retryPolicy = retryPolicy, preflightEnabled = preflightEnabled)
 
-    /** USB ESC/POS printer. Requests runtime USB permission on first print. */
-    fun usb(context: Context, device: UsbDevice): Printer = EscPosUsbPrinter(context.applicationContext, device)
+    /** USB ESC/POS printer. Requests runtime USB permission on first print. [isImpact] forces text-only. */
+    fun usb(context: Context, device: UsbDevice, isImpact: Boolean = false): Printer =
+        EscPosUsbPrinter(context.applicationContext, device, isImpact = isImpact)
 
     /** Star printer via the StarXpand SDK. [identifier] is the MAC/IP from Star discovery. */
-    fun star(context: Context, identifier: String, preflightEnabled: Boolean = true): Printer =
-        StarPrinterBackend(context.applicationContext, identifier, preflightEnabled = preflightEnabled)
+    fun star(
+        context: Context,
+        identifier: String,
+        isImpact: Boolean = false,
+        paperWidthMm: Int? = null,
+        preflightEnabled: Boolean = true,
+    ): Printer = StarPrinterBackend(
+        context.applicationContext, identifier,
+        isImpact = isImpact, paperWidthMm = paperWidthMm, preflightEnabled = preflightEnabled,
+    )
 
     /** Sunmi built-in printer (Sunmi hardware only). */
     fun sunmi(context: Context, preflightEnabled: Boolean = true): Printer =

@@ -4,6 +4,7 @@ import com.universalprinter.model.PreflightResult
 import com.universalprinter.model.PrintDocument
 import com.universalprinter.model.PrintResult
 import com.universalprinter.model.PrinterWarning
+import com.universalprinter.model.textOnly
 import com.universalprinter.queue.PrintQueue
 import com.universalprinter.text.ReceiptRasterization
 import kotlinx.coroutines.CoroutineDispatcher
@@ -18,6 +19,11 @@ interface Printer {
     /** Physical paper width (mm) if the printer knows it (e.g. from discovery). When set, it drives the
      *  render width — `printReceipt` re-paginates the document to this paper. Null = use the document's paper. */
     val paperWidthMm: Int? get() = null
+
+    /** True for 9-pin **impact / dot-matrix** printers (Epson TM-U*, Star SP700/SP742, Bixolon SRP-27x).
+     *  These can't raster, so every job is forced text-only (images dropped, barcode/QR rendered as their
+     *  data string). Set at construction from the discovered `isImpact` flag. Default false = full graphics. */
+    val isImpact: Boolean get() = false
 
     /** Establish/verify the connection. Returns false if the printer can't be reached. */
     suspend fun connect(): Boolean
@@ -61,10 +67,11 @@ abstract class QueuedPrinter(
         return printRendered(document)
     }
 
-    // Rasterize any non-Latin text to images (per the document's RenderMode) before the backend
-    // renders — transport-agnostic, so every backend gets i18n via its existing image path.
+    // Impact (9-pin) printers can't raster at all → force text-only and skip rasterization (which would
+    // re-introduce images from non-Latin text). Everyone else: rasterize non-Latin text to images (per the
+    // document's RenderMode) before the backend renders — transport-agnostic, so every backend gets i18n.
     private suspend fun printRendered(document: PrintDocument): PrintResult =
-        doPrint(ReceiptRasterization.apply(document))
+        doPrint(if (isImpact) document.textOnly() else ReceiptRasterization.apply(document))
 
     private fun withWarnings(result: PrintResult, warnings: List<PrinterWarning>): PrintResult =
         if (warnings.isNotEmpty() && result is PrintResult.Success) PrintResult.Success(result.warnings + warnings) else result

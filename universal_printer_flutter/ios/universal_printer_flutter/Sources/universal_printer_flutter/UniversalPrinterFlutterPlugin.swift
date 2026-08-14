@@ -7,7 +7,7 @@ import UIKit
 /// Sunmi/iMin built-in are Android-only and return a catchable error / empty list. (Star lands next.)
 public class UniversalPrinterFlutterPlugin: NSObject, FlutterPlugin {
 
-    private var printers: [String: NetworkPrinter] = [:]
+    private var printers: [String: PrinterBackend] = [:]
     private var seq: Int = 0
     private let lock = NSLock()
 
@@ -27,9 +27,11 @@ public class UniversalPrinterFlutterPlugin: NSObject, FlutterPlugin {
             Discovery.scanSubnet { found in self.reply(result, found.map { $0.toMap() }) }
         case "discoverSunmi":
             Discovery.bonjour { found in self.reply(result, found.map { $0.toMap() }) }
+        case "discoverStar":
+            StarDiscovery.discover { found in self.reply(result, found.map { $0.toMap() }) }
         case "discoverAll":
             discoverAll { found in self.reply(result, found.map { $0.toMap() }) }
-        case "discoverZebra", "discoverSnmp", "discoverSeiko", "discoverStar", "discoverUsb", "discoverBuiltIn":
+        case "discoverZebra", "discoverSnmp", "discoverSeiko", "discoverUsb", "discoverBuiltIn":
             reply(result, [Any]())   // not supported / deferred on iOS (built-in = Android-only hardware)
         case "ping":
             Discovery.ping((args["ip"] as? String) ?? "") { ok in self.reply(result, ok) }
@@ -39,6 +41,13 @@ public class UniversalPrinterFlutterPlugin: NSObject, FlutterPlugin {
             createPrinter(args, result)
         case "printDocument":
             printDocument(args, result)
+        case "receiptHtml":
+            guard let docMap = args["document"] as? [String: Any] else { reply(result, ""); return }
+            // Off the main thread — code generation + URL image fetches happen while building the HTML.
+            DispatchQueue.global().async {
+                let html = ReceiptHtml.render(Bridge.buildDocument(docMap))
+                self.reply(result, html)
+            }
         case "getStatus":
             guard let handle = args["handle"] as? String else {
                 reply(result, ["supported": false]); return
@@ -49,7 +58,10 @@ public class UniversalPrinterFlutterPlugin: NSObject, FlutterPlugin {
             }
             printer.queryStatus { map in self.reply(result, map) }
         case "closePrinter":
-            if let h = args["handle"] as? String { lock.lock(); printers[h] = nil; lock.unlock() }
+            if let h = args["handle"] as? String {
+                lock.lock(); let p = printers.removeValue(forKey: h); lock.unlock()
+                p?.close()
+            }
             reply(result, nil)
 
         default:
@@ -67,10 +79,21 @@ public class UniversalPrinterFlutterPlugin: NSObject, FlutterPlugin {
             let port = intArg(args["port"], 9100)
             let brand = args["brand"] as? String
             let paperWidthMm = args["paperWidthMm"] as? Int
+            let isImpact = (args["isImpact"] as? Bool) ?? false
             lock.lock()
             seq += 1
             let handle = "p\(seq)"
-            printers[handle] = NetworkPrinter(host: host, port: port, brand: brand, paperWidthMm: paperWidthMm)
+            printers[handle] = NetworkPrinter(host: host, port: port, brand: brand, paperWidthMm: paperWidthMm, isImpact: isImpact)
+            lock.unlock()
+            reply(result, handle)
+        case "star":
+            let identifier = (args["identifier"] as? String) ?? ""
+            let isImpact = (args["isImpact"] as? Bool) ?? false
+            let paperWidthMm = args["paperWidthMm"] as? Int
+            lock.lock()
+            seq += 1
+            let handle = "p\(seq)"
+            printers[handle] = StarPrinterBackend(identifier: identifier, isImpact: isImpact, paperWidthMm: paperWidthMm)
             lock.unlock()
             reply(result, handle)
         default:
@@ -90,15 +113,20 @@ public class UniversalPrinterFlutterPlugin: NSObject, FlutterPlugin {
         guard let docMap = args["document"] as? [String: Any] else {
             reply(result, Bridge.errorResult("CONTENT_INVALID", "missing document")); return
         }
-        // Encode off the main thread (buildDocument may synchronously fetch URL images).
+        // Build off the main thread (buildDocument may synchronously fetch URL images).
         DispatchQueue.global().async {
             var doc = Bridge.buildDocument(docMap)
-            // If the printer knows its paper width, re-paginate to it (you can't print wider than the paper).
-            if let mm = printer.paperWidthMm {
-                doc = ReceiptDocument(paper: PaperWidth.ofMillimeters(mm), cut: doc.cut, elements: doc.elements)
+            // Impact (9-pin) printers can't raster → force text-only (drop images, barcode/QR → their data).
+            if printer.isImpact { doc = doc.textOnly() }
+            // Re-paginate to the printer's real width. Impact is always the 33-char IMPACT_76 class — its
+            // width can't be inferred from a mm value (ofMillimeters has no impact case), so isImpact wins;
+            // otherwise use the discovered paperWidthMm.
+            let paper: PaperWidth? = printer.isImpact ? .impact76 : printer.paperWidthMm.map(PaperWidth.ofMillimeters)
+            if let paper = paper {
+                doc = ReceiptDocument(paper: paper, cut: doc.cut, elements: doc.elements)
             }
-            let data = EscPos.encode(doc)
-            printer.send(data) { reason in
+            // The backend owns its encoding (ESC/POS bytes for network, StarXpand commands for Star).
+            printer.printDocument(doc) { reason in
                 if let reason = reason {
                     self.reply(result, Bridge.errorResult(reason, "print failed"))
                 } else {
@@ -116,6 +144,7 @@ public class UniversalPrinterFlutterPlugin: NSObject, FlutterPlugin {
         var all: [DiscoveredPrinter] = []
         group.enter(); Discovery.scanSubnet { r in lock2.lock(); all += r; lock2.unlock(); group.leave() }
         group.enter(); Discovery.bonjour { r in lock2.lock(); all += r; lock2.unlock(); group.leave() }
+        group.enter(); StarDiscovery.discover { r in lock2.lock(); all += r; lock2.unlock(); group.leave() }
         group.notify(queue: .global()) {
             var seen = Set<String>()
             completion(all.filter { seen.insert($0.ipAddress ?? $0.name).inserted })

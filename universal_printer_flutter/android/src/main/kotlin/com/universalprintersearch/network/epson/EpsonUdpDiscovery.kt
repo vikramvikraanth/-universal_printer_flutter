@@ -109,11 +109,15 @@ class EpsonUdpDiscovery {
         val deadline = System.currentTimeMillis() + 1000
         var result = ""
         while (System.currentTimeMillis() < deadline) {
-            socket.receive(packet)
+            // soTimeout throws on a quiet slice; keep polling till the deadline (a slow TM-U still answers).
+            try { socket.receive(packet) } catch (_: SocketTimeoutException) { continue }
             if (packet.address?.hostAddress != ip) continue
-            val ascii = String(packet.data, 0, packet.length, Charsets.US_ASCII)
-            result = idField(ascii, "MDL:")
-            break
+            val data = packet.data.copyOf(packet.length)
+            // Phase 1 & 2 share this socket, so a stale fn=0x00 MAC straggler may arrive first — it carries
+            // no MDL token. Only the fn=0x02 reply echoes 0x02 at offset 6; skip anything else.
+            if (data.size < 7 || (data[6].toInt() and 0xFF) != 0x02) continue
+            val model = idField(String(data, 0, data.size, Charsets.US_ASCII), "MDL:")
+            if (model.isNotEmpty()) { result = model; break }
         }
         result
     } catch (_: Exception) {

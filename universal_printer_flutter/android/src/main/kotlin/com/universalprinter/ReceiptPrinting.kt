@@ -39,23 +39,38 @@ suspend fun Printer.printReceipt(
 ): PrintResult {
     // If the printer knows its physical paper width (from discovery), re-paginate to it so the HTML/
     // bitmap/text render at the printer's real print width — you can't print wider than the paper.
-    val sized = paperWidthMm?.let { document.withPaper(PaperWidth.ofMillimeters(it)) } ?: document
+    val sized = impactAwarePaper(isImpact, paperWidthMm)?.let { document.withPaper(it) } ?: document
     // Resolve URL images to cached bitmaps once, up front — both print types then work offline.
     val resolved = ImageResolver.resolve(sized) { ImageCache.load(context, it) }
-    return routePrint(type, resolved, ::print) { doc ->
+    return routePrint(type, isImpact, resolved, ::print) { doc ->
         val html = renderReceiptHtml(context, doc) // doc already resolved → the inner resolve is a no-op fast path
         val bitmap = HtmlReceiptRasterizer(context).toBitmap(html, doc.paper.widthPx)
         PrintDocument.image(bitmap, doc.paper, doc.cut)
     }
 }
 
+/**
+ * The paper to re-paginate to before rendering, or null to leave the document's own paper.
+ * An **impact** printer is always the 9-pin ~76mm class ([PaperWidth.IMPACT_76], 33-char Font A) — its
+ * width can't be inferred from a mm value (discovery may report 76/80), so `isImpact` is the authority.
+ * Otherwise use the discovered [paperWidthMm]. Pure — unit-testable.
+ */
+internal fun impactAwarePaper(isImpact: Boolean, paperWidthMm: Int?): PaperWidth? = when {
+    isImpact -> PaperWidth.IMPACT_76
+    paperWidthMm != null -> PaperWidth.ofMillimeters(paperWidthMm)
+    else -> null
+}
+
 /** Pure routing between text and image paths — testable without a WebView. */
 internal suspend fun routePrint(
     type: PrintType,
+    isImpact: Boolean,
     document: PrintDocument,
     print: suspend (PrintDocument) -> PrintResult,
     toImageDoc: suspend (PrintDocument) -> PrintDocument,
-): PrintResult = when (type) {
-    PrintType.TEXT -> print(document)
-    PrintType.IMAGE -> print(toImageDoc(document))
+): PrintResult = when {
+    // 9-pin impact printers can't raster, so the IMAGE path is meaningless — and it would produce a
+    // single-image doc that the backend's impact text-only pass then strips to nothing. Force TEXT.
+    isImpact || type == PrintType.TEXT -> print(document)
+    else -> print(toImageDoc(document))
 }

@@ -1,7 +1,9 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter/services.dart';
 
+import 'src/channel.dart';
 import 'src/models.dart';
 import 'src/printer.dart';
 
@@ -18,7 +20,7 @@ export 'src/printer.dart' show Printer, PrinterStatus, PaperState;
 class UniversalPrinterFlutter {
   UniversalPrinterFlutter._();
 
-  static const MethodChannel _channel = MethodChannel('universal_printer_flutter');
+  static const MethodChannel _channel = MethodChannel(PrinterChannel.name);
 
   static void _ensureSupported() {
     if (!Platform.isAndroid && !Platform.isIOS) {
@@ -59,48 +61,96 @@ class UniversalPrinterFlutter {
   // ---- Printer factories (return a native-backed [Printer] handle) ----
 
   /// Network/TCP ESC/POS printer (raw-print port, default 9100). Optionally carry the discovered
-  /// [brand] and [paperWidthMm] (mm) so the printer object knows what it's driving.
+  /// [brand] and [paperWidthMm] (mm) so the printer object knows what it's driving. Set [isImpact] for
+  /// a 9-pin dot-matrix model (Epson TM-U*) — every job is then forced text-only (no image/QR/barcode).
   static Future<Printer> networkPrinter(String host,
-          {int port = 9100, PrinterBrand? brand, int? paperWidthMm}) =>
-      _create({'kind': 'network', 'host': host, 'port': port, 'brand': brand?.wire, 'paperWidthMm': paperWidthMm});
+          {int port = 9100, PrinterBrand? brand, int? paperWidthMm, bool isImpact = false}) =>
+      _create(_networkArgs(host, port: port, brand: brand, paperWidthMm: paperWidthMm, isImpact: isImpact));
 
   /// Sunmi Cloud Printer over LAN (alias for [networkPrinter]).
-  static Future<Printer> sunmiCloudPrinter(String host, {int port = 9100}) =>
-      _create({'kind': 'sunmiCloud', 'host': host, 'port': port});
+  static Future<Printer> sunmiCloudPrinter(String host, {int port = 9100}) => _create({
+        PrinterChannel.argKind: PrinterChannel.kindSunmiCloud,
+        PrinterChannel.argHost: host,
+        PrinterChannel.argPort: port,
+      });
 
-  /// Star printer via the StarXpand SDK. [identifier] is the MAC/IP from Star discovery.
-  static Future<Printer> starPrinter(String identifier) =>
-      _create({'kind': 'star', 'identifier': identifier});
+  /// Star printer via the StarXpand SDK. [identifier] is the MAC/IP from Star discovery. Set [isImpact]
+  /// for a 9-pin impact Star (SP700/SP742) — every job is then forced text-only. [paperWidthMm] (mm)
+  /// re-paginates the render to the printer's real width.
+  static Future<Printer> starPrinter(String identifier, {bool isImpact = false, int? paperWidthMm}) =>
+      _create(_starArgs(identifier, isImpact: isImpact, paperWidthMm: paperWidthMm));
 
   /// Sunmi built-in printer (Sunmi hardware only).
-  static Future<Printer> sunmiPrinter() => _create({'kind': 'sunmi'});
+  static Future<Printer> sunmiPrinter() => _create({PrinterChannel.argKind: PrinterChannel.kindSunmi});
 
   /// iMin built-in printer, v1 + v2 (iMin hardware only).
-  static Future<Printer> iminPrinter() => _create({'kind': 'imin'});
+  static Future<Printer> iminPrinter() => _create({PrinterChannel.argKind: PrinterChannel.kindImin});
 
   /// USB ESC/POS printer, matched by [vendorId]/[productId] from [discoverUsb]. Runtime USB
-  /// permission is requested natively on first print.
-  static Future<Printer> usbPrinter({required int vendorId, required int productId}) =>
-      _create({'kind': 'usb', 'vendorId': vendorId, 'productId': productId});
+  /// permission is requested natively on first print. Set [isImpact] for a 9-pin dot-matrix model
+  /// (Epson TM-U* over USB) — every job is then forced text-only.
+  static Future<Printer> usbPrinter({required int vendorId, required int productId, bool isImpact = false}) =>
+      _create(_usbArgs(vendorId: vendorId, productId: productId, isImpact: isImpact));
 
-  /// Build the right printer for a [DiscoveredPrinter] (network/USB). For built-in Sunmi/iMin/Star
-  /// use the dedicated factories.
-  static Future<Printer> printerFor(DiscoveredPrinter p) {
-    if (p.connectionType == PrinterConnectionType.usb) {
-      return usbPrinter(vendorId: p.vendorId ?? 0, productId: p.productId ?? 0);
+  // ---- Wire arg builders (pure — shared by the factories and [createArgs]) ----
+
+  static Map<String, Object?> _networkArgs(String host,
+          {int port = 9100, PrinterBrand? brand, int? paperWidthMm, bool isImpact = false}) =>
+      {
+        PrinterChannel.argKind: PrinterChannel.kindNetwork,
+        PrinterChannel.argHost: host,
+        PrinterChannel.argPort: port,
+        PrinterChannel.argBrand: brand?.wire,
+        PrinterChannel.argPaperWidthMm: paperWidthMm,
+        PrinterChannel.argIsImpact: isImpact,
+      };
+
+  static Map<String, Object?> _usbArgs({required int vendorId, required int productId, bool isImpact = false}) => {
+        PrinterChannel.argKind: PrinterChannel.kindUsb,
+        PrinterChannel.argVendorId: vendorId,
+        PrinterChannel.argProductId: productId,
+        PrinterChannel.argIsImpact: isImpact,
+      };
+
+  static Map<String, Object?> _starArgs(String identifier, {bool isImpact = false, int? paperWidthMm}) => {
+        PrinterChannel.argKind: PrinterChannel.kindStar,
+        PrinterChannel.argIdentifier: identifier,
+        PrinterChannel.argIsImpact: isImpact,
+        PrinterChannel.argPaperWidthMm: paperWidthMm,
+      };
+
+  /// The `createPrinter` wire args for a discovered printer. Routing: **Star brand → StarXpand
+  /// backend** (must precede the others — a discovered Star reports `connectionType = network`);
+  /// USB → USB backend; everything else → network ESC/POS. Pure (no channel), so it's unit-testable.
+  @visibleForTesting
+  static Map<String, Object?> createArgs(DiscoveredPrinter p) {
+    if (p.brand == PrinterBrand.star) {
+      // Star's LAN connect string is surfaced as ipAddress (fall back to the MAC/uniqueId).
+      return _starArgs(
+        p.ipAddress ?? p.macAddress ?? '',
+        isImpact: p.isImpact,
+        paperWidthMm: p.supportedPaperWidthsMm.isNotEmpty ? p.supportedPaperWidthsMm.first : null,
+      );
     }
-    // Carry the discovered brand + first supported paper width into the printer.
-    return networkPrinter(
+    if (p.connectionType == PrinterConnectionType.usb) {
+      return _usbArgs(vendorId: p.vendorId ?? 0, productId: p.productId ?? 0, isImpact: p.isImpact);
+    }
+    return _networkArgs(
       p.ipAddress ?? '',
       port: p.port,
       brand: p.brand,
       paperWidthMm: p.supportedPaperWidthsMm.isNotEmpty ? p.supportedPaperWidthsMm.first : null,
+      isImpact: p.isImpact,
     );
   }
 
+  /// Build the right printer for a [DiscoveredPrinter] (Star / USB / network). For built-in Sunmi/iMin
+  /// use the dedicated factories.
+  static Future<Printer> printerFor(DiscoveredPrinter p) => _create(createArgs(p));
+
   static Future<Printer> _create(Map<String, Object?> args) async {
     _ensureSupported();
-    final handle = await _channel.invokeMethod<String>('createPrinter', args);
+    final handle = await _channel.invokeMethod<String>(PrinterChannel.methodCreatePrinter, args);
     if (handle == null) {
       throw StateError('createPrinter returned no handle for $args');
     }
