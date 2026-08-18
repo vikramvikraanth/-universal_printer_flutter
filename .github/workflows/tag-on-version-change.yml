@@ -5,9 +5,11 @@ name: Tag on version change
 # pub.dev via OIDC). Net effect: commit a version bump to main -> auto-tag -> auto-publish.
 #
 # IMPORTANT: a tag pushed by the default GITHUB_TOKEN does NOT trigger other workflows (GitHub
-# anti-recursion). So publish.yml only fires if this tag is pushed with a Personal Access Token.
-# Add a repo secret RELEASE_PAT (a fine-grained PAT with Contents: read/write on this repo).
-# Without it, the tag is still created, but you must run publish manually (a warning is emitted).
+# anti-recursion), so a plain tag push can't start publish.yml. Two ways this workflow handles that:
+#   - If a RELEASE_PAT secret exists (fine-grained PAT, Contents: read/write), the tag is pushed with
+#     it and publish.yml fires from the tag push (the classic path), OR
+#   - otherwise we explicitly dispatch publish.yml at the new tag via `gh workflow run` — which
+#     GITHUB_TOKEN IS allowed to do — so publishing works with no PAT required.
 
 on:
   push:
@@ -17,6 +19,7 @@ on:
 
 permissions:
   contents: write
+  actions: write   # dispatch publish.yml (workflow_dispatch fallback when there is no RELEASE_PAT)
 
 concurrency:
   group: tag-${{ github.ref }}
@@ -31,7 +34,9 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.RELEASE_PAT || github.token }}
 
-      - name: Create + push tag if the version is new
+      - name: Create + push tag if the version is new, then ensure publish runs
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           v=$(grep '^version:' universal_printer_flutter/pubspec.yaml | awk '{print $2}')
           tag="v$v"
@@ -44,6 +49,10 @@ jobs:
           git tag "$tag"
           git push origin "$tag"
           echo "Created and pushed $tag"
-          if [ -z "${{ secrets.RELEASE_PAT }}" ]; then
-            echo "::warning title=Publish will NOT auto-run::Tag $tag was pushed with GITHUB_TOKEN, which cannot trigger publish.yml. Add a RELEASE_PAT secret, or publish manually: cd universal_printer_flutter && flutter pub publish"
+          if [ -n "${{ secrets.RELEASE_PAT }}" ]; then
+            echo "RELEASE_PAT present → the tag push triggers publish.yml directly."
+          else
+            # GITHUB_TOKEN can't trigger publish.yml via the tag push, but it CAN dispatch it.
+            echo "No RELEASE_PAT → dispatching publish.yml at $tag."
+            gh workflow run publish.yml --ref "$tag"
           fi

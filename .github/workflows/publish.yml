@@ -1,14 +1,22 @@
 name: Publish to pub.dev
 
-# Fires when the bump workflow pushes a vX.Y.Z tag. Publishes the package using pub.dev's official
-# OIDC-based automated publishing (no stored tokens/secrets). Requires a one-time setup on pub.dev:
+# Publishes the package via pub.dev's official OIDC-based automated publishing (no stored tokens).
+# Requires a one-time setup on pub.dev:
 #   pub.dev -> package -> Admin -> Automated publishing -> Enable publishing from GitHub Actions,
 #   repository = vikramvikraanth/-universal_printer_flutter, tag pattern = v{{version}}.
+#
+# Triggers:
+#  - push of a vX.Y.Z tag (the normal path, when the tag is pushed by a user/PAT), OR
+#  - workflow_dispatch against a vX.Y.Z tag ref — used by `tag-on-version-change.yml` as a fallback
+#    (GITHUB_TOKEN can't trigger the tag-push above but CAN dispatch this), and for manual re-runs:
+#      gh workflow run publish.yml --ref v0.0.12
+# OIDC matches on the ref (the tag), so either trigger publishes correctly.
 
 on:
   push:
     tags:
       - 'v[0-9]+.[0-9]+.[0-9]+'
+  workflow_dispatch:
 
 jobs:
   publish:
